@@ -3,10 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
 import { Article, ArticleDerivative, Topic, Cluster } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { ArticleContent, SummaryContent } from '@/components/SafeHtmlContent';
 import { formatDate } from '@/lib/utils';
+import { containsHtml, htmlToText } from '@/lib/html-utils';
+import { ChevronLeft, User, Clock, CheckCircle, TrendingUp, ExternalLink, Share2 } from 'lucide-react';
 
 interface ArticleDetail {
   article: Article;
@@ -17,6 +21,7 @@ interface ArticleDetail {
 }
 
 export default function ArticleDetailPage() {
+  const { user } = useAuth();
   const params = useParams();
   const router = useRouter();
   const articleId = parseInt(params.id as string);
@@ -24,10 +29,15 @@ export default function ArticleDetailPage() {
   const [articleDetail, setArticleDetail] = useState<ArticleDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showFullContent, setShowFullContent] = useState(false);
   const [activeTab, setActiveTab] = useState<'content' | 'summary' | 'related'>('content');
 
   useEffect(() => {
+    // Redirect admin users to system settings
+    if (user?.is_admin) {
+      router.replace('/dashboard/settings');
+      return;
+    }
+
     if (isNaN(articleId)) {
       setError('Invalid article ID');
       setIsLoading(false);
@@ -35,14 +45,115 @@ export default function ArticleDetailPage() {
     }
     
     fetchArticleDetail();
-  }, [articleId]);
+  }, [articleId, user, router]);
+
+  const highlightParagraph = (elementId: string, retryCount = 0) => {
+    // 移除之前的高亮
+    document.querySelectorAll('.highlighted-paragraph').forEach(el => {
+      el.classList.remove('highlighted-paragraph');
+    });
+
+    // 找到目标元素
+    const targetElement = document.getElementById(elementId);
+    if (targetElement) {
+      // 找到对应的段落
+      const paragraph = targetElement.nextElementSibling as HTMLElement;
+      if (paragraph && paragraph.tagName === 'P') {
+        paragraph.classList.add('highlighted-paragraph');
+        paragraph.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return true;
+      }
+    }
+    
+    // 如果没有找到元素且重试次数少于3次，则延迟重试
+    if (retryCount < 3) {
+      setTimeout(() => {
+        highlightParagraph(elementId, retryCount + 1);
+      }, 300);
+    }
+    
+    return false;
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1); // 移除#号
+      if (hash.startsWith('P-')) {
+        // 使用setTimeout确保DOM已经渲染完成
+        setTimeout(() => {
+          highlightParagraph(hash);
+        }, 100);
+      }
+    };
+
+    // 监听hash变化
+    window.addEventListener('hashchange', handleHashChange);
+    
+    // 页面加载时检查是否有hash
+    if (window.location.hash) {
+      handleHashChange();
+    }
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // 当文章内容加载完成后，再次检查锚点
+  useEffect(() => {
+    if (articleDetail?.article?.content && window.location.hash) {
+      const hash = window.location.hash.slice(1);
+      if (hash.startsWith('P-')) {
+        // 使用MutationObserver监听DOM变化，确保文章内容完全渲染后再高亮
+        const observer = new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+              // 检查是否找到了目标元素
+              const targetElement = document.getElementById(hash);
+              if (targetElement) {
+                highlightParagraph(hash);
+                observer.disconnect();
+                return;
+              }
+            }
+          }
+        });
+
+        // 开始观察文章内容区域的DOM变化
+        const articleContainer = document.querySelector('.article-content');
+        if (articleContainer) {
+          observer.observe(articleContainer, {
+            childList: true,
+            subtree: true
+          });
+          
+          // 设置超时，避免无限等待
+          setTimeout(() => {
+            observer.disconnect();
+            // 最后尝试一次高亮
+            highlightParagraph(hash);
+          }, 2000);
+        } else {
+          // 如果没有找到容器，使用延迟方式
+          setTimeout(() => {
+            highlightParagraph(hash);
+          }, 200);
+        }
+      }
+    }
+  }, [articleDetail?.article?.content]);
 
   const fetchArticleDetail = async () => {
     try {
-      // Note: This endpoint might not exist yet in the backend, 
-      // so we'll construct it from available data
-      const data = await apiClient.get<ArticleDetail>(`/api/article/${articleId}`);
-      setArticleDetail(data);
+      // The backend returns just an Article object, not an ArticleDetail
+      const articleData = await apiClient.get<Article>(`/api/article/${articleId}`);
+      
+      // Wrap the article data in the expected structure
+      setArticleDetail({
+        article: articleData,
+        derivative: articleData.derivative, // Now included in article data
+        related_articles: undefined, // Not provided by backend yet
+        topics: undefined, // Not provided by backend yet
+        clusters: undefined // Not provided by backend yet
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load article details');
     } finally {
@@ -52,7 +163,9 @@ export default function ArticleDetailPage() {
 
   const calculateReadingTime = (content: string): number => {
     const wordsPerMinute = 200;
-    const wordCount = content.trim().split(/\s+/).length;
+    // 如果内容包含HTML，先转换为纯文本再计算词数
+    const textContent = containsHtml(content) ? htmlToText(content) : content;
+    const wordCount = textContent.trim().split(/\s+/).length;
     return Math.ceil(wordCount / wordsPerMinute);
   };
 
@@ -60,7 +173,7 @@ export default function ArticleDetailPage() {
     return <LoadingSpinner size="lg" className="mt-20" />;
   }
 
-  if (error || !articleDetail) {
+  if (error || !articleDetail || !articleDetail.article) {
     return (
       <div className="max-w-4xl mx-auto mt-8 p-4 border border-red-300 rounded-lg text-red-700">
         <h3 className="font-semibold">Error loading article</h3>
@@ -88,9 +201,9 @@ export default function ArticleDetailPage() {
     );
   }
 
-  const { article, derivative, related_articles, topics, clusters } = articleDetail;
-  const content = article.content || '';
-  const summary = derivative?.summary;
+  const { article, related_articles, topics } = articleDetail;
+  const content = article?.content || '';
+  const summary = article?.derivative?.summary;
   const readingTime = content ? calculateReadingTime(content) : 0;
 
   return (
@@ -104,77 +217,74 @@ export default function ArticleDetailPage() {
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title="Go back"
             >
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
             </button>
             <div>
               <h1 className="text-3xl font-semibold text-gray-900 mb-3 leading-tight">
                 {article.title}
               </h1>
-              <div className="flex items-center gap-6 text-sm text-gray-600">
-                {article.author && (
-                  <span className="flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                    </svg>
-                    {article.author}
-                  </span>
-                )}
-                {article.published_at && (
-                  <span className="flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                    </svg>
-                    {formatDate(article.published_at)}
-                  </span>
-                )}
-                {readingTime > 0 && (
-                  <span className="flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
-                    </svg>
-                    {readingTime} min read
-                  </span>
-                )}
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  article.processing_status === 'completed' ? 'bg-green-100 text-green-800' :
-                  article.processing_status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                  article.processing_status === 'failed' ? 'bg-red-100 text-red-800' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
-                  {article.processing_status}
-                </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-6 text-sm text-gray-600">
+                  {article.author && (
+                    <span className="flex items-center gap-1">
+                      <User className="w-4 h-4" />
+                      {article.author}
+                    </span>
+                  )}
+                  {article.published_at && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {formatDate(article.published_at)}
+                    </span>
+                  )}
+                  {content && (
+                    <span className="flex items-center gap-1">
+                      <CheckCircle className="w-4 h-4" />
+                      {containsHtml(content) 
+                        ? htmlToText(content).trim().split(/\s+/).length 
+                        : content.trim().split(/\s+/).length
+                      } words
+                    </span>
+                  )}
+                  {readingTime > 0 && (
+                    <span className="flex items-center gap-1">
+                      <TrendingUp className="w-4 h-4" />
+                      {readingTime} min read
+                    </span>
+                  )}
+                </div>
+                
+                {/* Action icons */}
+                <div className="flex items-center gap-3 text-gray-600">
+                  {article.url && (
+                    <a
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-gray-900 transition-colors"
+                      title="Open Original"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  )}
+                  <button
+                    onClick={() => navigator.share?.({ title: article.title, url: window.location.href }) || 
+                      navigator.clipboard?.writeText(window.location.href)}
+                    className="hover:text-gray-900 transition-colors"
+                    title="Share"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
               </div>
             </div>
           </div>
           
-          <div className="flex gap-3">
-            {article.url && (
-              <a
-                href={article.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5z" clipRule="evenodd" />
-                  <path fillRule="evenodd" d="M6.194 12.753a.75.75 0 001.06.053L16.5 4.44v2.81a.75.75 0 001.5 0v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 000 1.5h2.553l-9.056 8.194a.75.75 0 00-.053 1.06z" clipRule="evenodd" />
-                </svg>
-                Original Source
-              </a>
-            )}
-            <Link
-              href="/dashboard"
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Dashboard
-            </Link>
-          </div>
         </div>
 
         {/* Topics and Categories */}
-        {(topics?.length > 0 || article.category) && (
+        {((topics?.length && topics?.length > 0) || article.category) && (
           <div className="mt-4 space-y-2">
             {topics && topics.length > 0 && (
               <div>
@@ -202,7 +312,27 @@ export default function ArticleDetailPage() {
             )}
           </div>
         )}
-      </div>
+
+      {/* AI Summary Section */}
+      {summary && (
+        <div className="mb-8">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <div className="text-blue-800 leading-relaxed">
+                  <SummaryContent content={summary} className="" />
+                </div>
+                {article?.derivative?.summary_generated_at && (
+                  <p className="text-sm text-blue-600 mt-4">
+                    Generated on {formatDate(article.derivative.summary_generated_at)}
+                    {article.derivative.llm_model_version && ` using ${article.derivative.llm_model_version}`}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content Tabs */}
       <div className="mb-6">
@@ -218,18 +348,6 @@ export default function ArticleDetailPage() {
             >
               Full Article
             </button>
-            {summary && (
-              <button
-                onClick={() => setActiveTab('summary')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'summary'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                AI Summary
-              </button>
-            )}
             {related_articles && related_articles.length > 0 && (
               <button
                 onClick={() => setActiveTab('related')}
@@ -247,31 +365,16 @@ export default function ArticleDetailPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-3">
+      <div className="grid grid-cols-1 gap-8">
+        <div>
           {activeTab === 'content' && (
             <div className="bg-white">
               {content ? (
-                <div className="prose prose-lg max-w-none">
-                  <div 
-                    className={`text-gray-800 leading-relaxed ${
-                      !showFullContent && content.length > 2000 ? 'line-clamp-[50]' : ''
-                    }`}
-                  >
-                    {content.split('\n').map((paragraph, index) => (
-                      <p key={index} className="mb-4 text-base leading-7">
-                        {paragraph}
-                      </p>
-                    ))}
-                  </div>
-                  {!showFullContent && content.length > 2000 && (
-                    <button
-                      onClick={() => setShowFullContent(true)}
-                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                    >
-                      Show Full Article
-                    </button>
-                  )}
+                <div className="article-content">
+                  <ArticleContent 
+                    content={content}
+                    className=""
+                  />
                 </div>
               ) : (
                 <div className="text-center py-12 text-gray-500">
@@ -284,9 +387,7 @@ export default function ArticleDetailPage() {
                       className="mt-2 inline-flex items-center text-blue-600 hover:text-blue-800"
                     >
                       View original source
-                      <svg className="w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5z" clipRule="evenodd" />
-                      </svg>
+                      <ExternalLink className="w-4 h-4 ml-1" />
                     </a>
                   )}
                 </div>
@@ -294,27 +395,6 @@ export default function ArticleDetailPage() {
             </div>
           )}
 
-          {activeTab === 'summary' && summary && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15.586 13H14a1 1 0 01-1-1z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-blue-900 mb-3">AI-Generated Summary</h3>
-                  <p className="text-blue-800 leading-relaxed">{summary}</p>
-                  {derivative?.summary_generated_at && (
-                    <p className="text-sm text-blue-600 mt-4">
-                      Generated on {formatDate(derivative.summary_generated_at)}
-                      {derivative.llm_model_version && ` using ${derivative.llm_model_version}`}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
           {activeTab === 'related' && related_articles && related_articles.length > 0 && (
             <div className="space-y-4">
@@ -343,87 +423,6 @@ export default function ArticleDetailPage() {
           )}
         </div>
 
-        {/* Sidebar */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Article Metadata */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <h3 className="font-semibold text-gray-900 mb-3">Article Information</h3>
-            <div className="space-y-2 text-sm">
-              <div>
-                <span className="font-medium text-gray-700">Status:</span>
-                <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                  article.processing_status === 'completed' ? 'bg-green-100 text-green-800' :
-                  article.processing_status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                  article.processing_status === 'failed' ? 'bg-red-100 text-red-800' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
-                  {article.processing_status}
-                </span>
-              </div>
-              {article.created_at && (
-                <div>
-                  <span className="font-medium text-gray-700">Added:</span>
-                  <span className="ml-2 text-gray-600">{formatDate(article.created_at)}</span>
-                </div>
-              )}
-              {readingTime > 0 && (
-                <div>
-                  <span className="font-medium text-gray-700">Reading time:</span>
-                  <span className="ml-2 text-gray-600">{readingTime} minutes</span>
-                </div>
-              )}
-              {content && (
-                <div>
-                  <span className="font-medium text-gray-700">Word count:</span>
-                  <span className="ml-2 text-gray-600">{content.trim().split(/\s+/).length} words</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Clusters */}
-          {clusters && clusters.length > 0 && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Part of Clusters</h3>
-              <div className="space-y-2">
-                {clusters.map((cluster) => (
-                  <Link
-                    key={cluster.id}
-                    href={`/dashboard/clusters/${cluster.id}`}
-                    className="block p-3 border border-gray-200 rounded bg-white hover:bg-gray-50 transition-colors"
-                  >
-                    <h4 className="font-medium text-gray-900 text-sm mb-1">{cluster.title}</h4>
-                    <p className="text-xs text-gray-600">{cluster.article_count} articles</p>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <h3 className="font-semibold text-gray-900 mb-3">Actions</h3>
-            <div className="space-y-2">
-              {article.url && (
-                <a
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full px-3 py-2 text-sm text-center border border-gray-300 rounded hover:bg-white transition-colors"
-                >
-                  Open Original
-                </a>
-              )}
-              <button
-                onClick={() => navigator.share?.({ title: article.title, url: window.location.href }) || 
-                  navigator.clipboard?.writeText(window.location.href)}
-                className="block w-full px-3 py-2 text-sm text-center border border-gray-300 rounded hover:bg-white transition-colors"
-              >
-                Share Article
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

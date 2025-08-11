@@ -38,6 +38,13 @@ export interface RSSFeed {
   updated_at: string;
 }
 
+export interface ArticleDerivative {
+  summary?: string;
+  processing_status: 'pending' | 'processing' | 'completed' | 'failed';
+  summary_generated_at?: string;
+  llm_model_version?: string;
+}
+
 export interface Article {
   id: number;
   title: string;
@@ -48,16 +55,7 @@ export interface Article {
   category?: string;
   processing_status: 'pending' | 'processing' | 'completed' | 'failed';
   created_at: string;
-}
-
-export interface ArticleDerivative {
-  id: number;
-  summary?: string;
-  processing_status: 'pending' | 'processing' | 'completed' | 'failed';
-  summary_generated_at?: string;
-  embeddings_generated_at?: string;
-  llm_model_version?: string;
-  embedding_model_version?: string;
+  derivative?: ArticleDerivative;
 }
 
 export interface Cluster {
@@ -77,6 +75,23 @@ export interface DashboardData {
   top_topics: string[];
   summary: string;
   trending_keywords: string[];
+  clusters?: {
+    id: number;
+    title: string;
+    summary: string;
+    article_count: number;
+  }[];
+  top_articles?: {
+    id: number;
+    title: string;
+    url?: string;
+    published_at?: string;
+  }[];
+}
+
+export interface AvailableDatesData {
+  month: string; // YYYY-MM format
+  available_dates: string[]; // List of dates in YYYY-MM-DD format that have summaries
 }
 
 export interface ApiError {

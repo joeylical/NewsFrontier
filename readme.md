@@ -13,132 +13,163 @@ NewsFrontier operates through a multi-stage pipeline that transforms raw RSS fee
 2. **RSS Fetching**: The system periodically fetches RSS sources and stores news articles in a PostgreSQL database with full metadata (URL, title, content, timestamps, etc.)
 3. **Content Summarization**: A dedicated worker process generates concise summaries of each article using LLM technology
 4. **Vector Embeddings**: An embedding service converts article summaries into high-dimensional vectors using modern embedding APIs
-5. **Clustering Analysis**: Advanced clustering algorithms group similar articles together to identify trending topics and related stories
+5. **Clustering Analysis**: The system attempts to create clusters and categorize articles into clusters
 6. **API Layer**: A FastAPI-based backend provides RESTful interfaces for the frontend application
 
-The backend application written in Python using FastAPI provides the following interfaces:
-### API Endpoints
+## AI Pipeline
 
-#### Authentication
-* **`POST /api/login`** - User authentication
-  ```json
-  Request: {"username": "user123", "password": "password123"}
-  Response: {"token": "jwt_token", "user_id": 1, "expires": "2024-01-01T12:00:00Z"}
-  ```
+The AI processing pipeline transforms raw RSS articles into structured cluster-driven news insights through intelligent content analysis and contextual awareness:
 
-* **`POST /api/logout`** - User session termination
-  ```json  
-  Request: {} (requires Authorization header)
-  Response: {"message": "Logged out successfully"}
-  ```
+### 1. Topic Embedding Generation
+The system creates vector embeddings for user-defined topics, encoding their semantic meaning into high-dimensional vectors using Google's gemini-embedding-001 model. These 768-dimensional topic embeddings serve as reference points for content classification and relevance scoring throughout the processing pipeline.
 
-* **`POST /api/register`** - New user registration
-  ```json
-  Request: {"username": "newuser", "password": "securepass", "email": "user@example.com"}
-  Response: {"user_id": 2, "message": "Registration successful"}
-  ```
+### 2. Article Processing and Summarization
+Each fetched article undergoes comprehensive two-stage processing:
+* **Content Summarization**: Articles are processed through Google Gemini LLM APIs (gemini-2.0-flash-lite) to generate concise, structured summaries that capture key points, context, and maintain anchor link references
+* **Vector Generation**: Article summaries are converted into 768-dimensional vector embeddings using gemini-embedding-001 for semantic similarity calculations and clustering operations
 
-#### Dashboard & Analytics
-* **`GET /api/today`** - Daily news summary and analytics
-  ```json
-  Response: {
-    "date": "2024-01-01",
-    "total_articles": 247,
-    "clusters_count": 15,
-    "top_topics": ["Technology", "Politics", "Sports"],
-    "summary": "AI-generated overview of today's major news trends...",
-    "trending_keywords": ["AI", "election", "climate"]
-  }
-  ```
+### 3. Intelligent Cluster Detection and Classification
+When processing each article, the system employs a sophisticated multi-stage clustering approach:
 
-#### Topic Management  
-* **`GET /api/topics`** - List all user topics
-  ```json
-  Response: {
-    "topics": [
-      {"id": 1, "name": "Technology", "keywords": ["AI", "tech", "software"], "active": true},
-      {"id": 2, "name": "Politics", "keywords": ["election", "government"], "active": false}
-    ]
-  }
-  ```
+#### Topic Relevance Assessment
+* **Initial Filtering**: The system first determines if the article is semantically similar to any user-defined topics using vector similarity calculations
+* **Relevance Scoring**: Articles that meet the similarity threshold are scored for relevance to specific topics
 
-* **`POST /api/topics`** - Create new topic
-  ```json
-  Request: {"name": "Climate Change", "keywords": ["climate", "environment", "green energy"]}
-  Response: {"id": 3, "message": "Topic created successfully"}
-  ```
+#### Cluster Assignment Decision
+For each relevant topic, the system processes clusters sequentially:
+* **Existing Cluster Matching**: When similar clusters exist within the topic, the article is classified and assigned to the most semantically similar cluster based on embedding distance
+* **Similarity Threshold**: Uses configurable similarity thresholds (default: 0.62 for topic, 0.7 for cluster) to ensure high-quality groupings
 
-#### Content Discovery
-* **`GET /api/topic/{id}`** - Get news clusters for specific topic
-  ```json
-  Response: {
-    "topic": {"id": 1, "name": "Technology"},
-    "clusters": [
-      {"id": 101, "title": "AI Breakthrough", "article_count": 5, "summary": "Major AI developments..."},
-      {"id": 102, "title": "Tech Earnings", "article_count": 8, "summary": "Quarterly results..."}
-    ]
-  }
-  ```
+#### Intelligent New Cluster Creation
+When articles don't match existing clusters:
+* **LLM-Based Analysis**: The system uses Gemini-2.5-Pro to analyze the article content and determine if it represents a genuinely new cluster or development
+* **Context-Aware Creation**: The LLM considers existing cluster titles, descriptions, and the topic hierarchy to make intelligent clustering decisions
+* **Dynamic Association**: New clusters are created with AI-generated titles and descriptions, and the article is associated with the new cluster with appropriate relevance scoring
 
-* **`GET /api/cluster/{id}`** - Detailed cluster with articles
-  ```json
-  Response: {
-    "cluster": {
-      "id": 101,
-      "title": "AI Breakthrough",
-      "summary": "Comprehensive cluster summary...",
-      "articles": [
-        {"id": 1001, "title": "OpenAI Announces...", "source": "TechNews", "timestamp": "2024-01-01T10:00:00Z"},
-        {"id": 1002, "title": "Google Responds...", "source": "Reuters", "timestamp": "2024-01-01T11:00:00Z"}
-      ]
-    }
-  }
-  ```
+### 4. Cluster Evolution and Relationship Management
+* **Cluster Updates**: Existing clusters are dynamically updated as new related articles are added
+* **Cross-Cluster Analysis**: The system identifies relationships between different clusters within topics
+* **Temporal Tracking**: Cluster evolution is tracked over time to maintain cluster coherence and relevance
+
+### 5. Daily Summary Creation
+A personalized daily news summary is generated using contextual information:
+* **System-wide Prompts**: Structured prompts defining summary format, tone, and markdown linking conventions
+* **User Preferences**: Individual topic interests, subscription priorities, and personalized summary prompts
+* **Historical Context**: Previous daily summaries and user interaction patterns
+* **Cluster Highlights**: Curated highlights from today's top clusters and developments with internal dashboard links
+
+### 6. Daily Cover Image Generation
+Visual content is created through AI-powered image generation using Imagen-3.0-Generate-002:
+* **Emotional Tone**: Core sentiments and mood extracted from the daily summary content
+* **Visual Scenario**: Concrete settings, situations, and contextual elements from news clusters
+* **Key Subjects**: Primary actors, objects, and entities identified in the news without text overlays
+* **Narrative Element**: A compelling visual story that encapsulates the day's most significant developments
+
+### AI Models and Applications
+
+The AI pipeline leverages multiple specialized models from Google's AI suite, each optimized for specific tasks:
+
+| Model | Type | Application |
+|-------|------|-------------|
+| **gemini-2.0-flash-lite** | Instruction-following | Article summary<br/>Image generation prompt generating |
+| **gemini-2.5-pro** | Instruction-following | Creating new cluster<br/>Daily summary |
+| **imagen-3.0-generate-002** | Image generation | Daily summary cover image |
+| **gemini-embedding-001** | Embedding | Article embedding<br/>Topic embedding<br/>Cluster embedding |
+
+This multi-model approach ensures optimal performance for each specific task while maintaining consistency in the overall AI processing pipeline.
 
 # Project Structure
 
 ## Directories Overview
 
 ### Core Applications
-* **`backend/`** - FastAPI-based REST API server
-  * Handles user authentication and session management
-  * Provides data access layer for news, topics, and clusters
-  * Implements business logic for content aggregation and analysis
-  * **Administrative Interface**: Dedicated admin authentication endpoints with elevated privileges
-  * **System Configuration**: Runtime settings management for AI services and processing parameters
-  
 * **`frontend/`** - Next.js web application with TypeScript
-  * React-based user interface with DaisyUI components
-  * Responsive design for desktop and mobile devices
-  * Real-time updates and interactive data visualizations
-  * **Administrative Dashboard**: System monitoring, user management, and service health status
-  * **AI Service Configuration**: Dynamic LLM endpoint management, model selection, and API key settings
-  * **RSS Management Interface**: Feed source configuration, fetch scheduling, and processing status monitoring
-  * **System Settings Panel**: Configurable processing parameters, retry policies, and performance tuning
+  * **Technology Stack**: Next.js 15+ with App Router, TypeScript, TailwindCSS + DaisyUI
+  * **Architecture**: React components with server-side rendering and client-side interactivity
+  * **Authentication**: JWT-based authentication with middleware protection
+  * **Key Features**:
+    - Responsive design for desktop and mobile devices
+    - Interactive dashboard with daily news summaries
+    - Hierarchical news browsing (Topics → Clusters → Articles)
+    - Real-time updates and data visualizations
+    - Administrative interface for system management
+    - RSS feed management and configuration
+    - User settings and preferences management
+  * **Package Manager**: pnpm for efficient dependency management
+
+* **`backend/`** - FastAPI-based REST API server
+  * **Technology Stack**: Python 3.11+, FastAPI, SQLAlchemy ORM, PostgreSQL, JWT authentication
+  * **Architecture**: Async-first microservice with dependency injection and middleware pipeline
+  * **Core Components**:
+    - FastAPI application with automatic OpenAPI documentation generation
+    - JWT-based authentication with bcrypt password hashing
+    - CORS middleware for cross-origin frontend integration
+    - Request/response logging middleware with performance tracking
+    - Global exception handling with detailed error logging
+    - Integration with shared newsfrontier-lib for database operations
+  * **Key Features**:
+    - Complete user authentication system (login, register, logout)
+    - Daily personalized news summaries with date navigation
+    - Topic management with AI-generated vector embeddings
+    - Article and cluster content discovery APIs
+    - RSS feed subscription management
+    - HTML text processing with paragraph anchor insertion
+    - Internal service APIs for scraper and postprocess communication
+    - Administrative endpoints for system configuration
 
 ### Data Pipeline Components  
 * **`scraper/`** - RSS feed collection service
-  * Python-based RSS parser with concurrent fetching
-  * Configurable scheduling via cron jobs
-  * Robust error handling and retry mechanisms
-  * PostgreSQL integration for data persistence
+  * **Technology Stack**: Python 3.11+, requests, feedparser, SQLAlchemy
+  * **Architecture**: Concurrent RSS fetching with configurable scheduling
+  * **Key Features**:
+    - Async RSS parsing with concurrent fetching capabilities
+    - Content deduplication using SHA256 hashing
+    - Robust error handling and retry mechanisms
+    - Status tracking for feed fetch operations
+    - Backend API integration for data persistence
+    - Configurable fetch intervals per feed
+    - Daemon and one-shot execution modes
   
-* **`postprocess/`** - AI-powered content analysis
-  * LLM integration for intelligent article summarization
-  * Vector embedding generation using modern embedding APIs
-  * Batch processing capabilities for high-throughput analysis
-  * Quality assurance and content filtering
+* **`postprocess/`** - AI-powered content analysis and processing service
+  * **Technology Stack**: Python 3.11+, Google AI (Gemini), scikit-learn, pgvector, FastAPI
+  * **Architecture**: AI processing pipeline with intelligent clustering and content analysis
+  * **Core Responsibilities**:
+    - Generating 768-dimensional vector embeddings for semantic search
+    - Creating article summaries and derivatives using AI
+    - Clustering related articles based on content similarity
+  * **AI Integration Features**:
+    - Google Gemini models: Gemini-2.0-Flash-Lite for fast summarization
+    - Advanced analysis: Gemini-2.5-Pro for complex clustering and daily summaries
+    - Vector embeddings: gemini-embedding-001 for high-quality 768-dimensional vectors
+    - Clustering: Context-aware clustering decisions with LLM-based logic
+    - Daily summaries: Personalized news summaries with structured markdown output
+    - Cover image generation: AI-generated image descriptions using Imagen models
+  * **Operational Features**:
+    - Daemon and one-shot execution modes
+    - Comprehensive AI prompt testing framework
+    - FastAPI internal server for inter-service communication
+    - S3 integration for cover image storage
 
 ### Infrastructure & Utilities
 * **`lib/`** - Shared Python libraries and utilities
-  * Database models and ORM definitions
-  * Common data structures and type definitions
-  * Shared business logic and helper functions
+  * **Technology Stack**: Python 3.11+, SQLAlchemy, pgvector, Pydantic
+  * **Architecture**: Shared workspace library for common functionality
+  * **Key Components**:
+    - SQLAlchemy ORM models for all database tables
+    - Pydantic schemas for API request/response validation
+    - CRUD operations with type-safe database access
+    - LLM client integration (Google Generative AI)
+    - S3 client for cloud storage operations
+    - Vector embedding utilities with pgvector support
   
 * **`scripts/`** - Development and deployment utilities
-  * `init.sql` - PostgreSQL database schema initialization
-  * `dev.sh` - Development environment startup script
-  * Database migration and maintenance scripts
+  * **Key Scripts**:
+    - `init.sql` - PostgreSQL database schema with pgvector extension
+    - `dev.sh` / `stop-dev.sh` - Development environment management
+    - `generate-init-sql.py` - Dynamic schema generation with configurable vector dimensions
+    - `create-test-users.py` - Test data creation utilities
+    - Database dump and restore utilities for debugging
+    - System prompt templates for AI services
   
 * **`data/`** - PostgreSQL data directory (Docker volume)
   * Persistent storage for the database container
@@ -202,20 +233,292 @@ The project uses a **uv workspace** structure in the root directory with Git ver
 
 ### Backend Service
 * **Language**: Python 3.11+
-* **Framework**: FastAPI for high-performance async API development
-* **Database**: 
+* **Framework**: FastAPI for high-performance async API development with automatic OpenAPI documentation
+* **Architecture**: Single-file application with modular middleware pipeline
+* **Database Integration**: 
   * **PostgreSQL 17** with pgvector extension for vector operations
-  * **psycopg2** for database connectivity
-  * **SQLAlchemy ORM** for database modeling (defined in `../lib`)
-* **Project Management**: UV workspace member (no VCS within subproject)
-* **Code Quality**: Comprehensive type annotations throughout codebase
-* **Testing**: Pytest with comprehensive test coverage
+  * **SQLAlchemy ORM** via shared newsfrontier-lib package
+  * **Database session management** with dependency injection
+* **Security**: 
+  * **JWT authentication** with configurable expiration
+  * **bcrypt password hashing** with salt rounds
+  * **CORS middleware** for cross-origin requests
+* **Project Structure**: UV workspace member with minimal file footprint
 
 #### Key Modules
-* **Authentication**: JWT-based user session management
-* **API Routes**: RESTful endpoint implementations
-* **Data Models**: SQLAlchemy models for news, topics, clusters
-* **Business Logic**: Article processing and clustering algorithms
+* **`main.py`** - FastAPI application entry point with complete API implementation
+  * Authentication endpoints (login, register, logout, user management)
+  * Daily summary APIs with date navigation and calendar integration
+  * Topic management with AI vector embedding generation
+  * Content discovery APIs (topics, clusters, articles)
+  * RSS feed subscription management
+  * Internal service APIs for scraper and postprocess communication
+  * Administrative endpoints for system configuration
+  * Comprehensive middleware pipeline (CORS, logging, exception handling)
+
+* **`text_processor.py`** - HTML content processing utilities
+  * Paragraph anchor ID generation (P-xxxxx format)
+  * HTML anchor insertion for multi-paragraph content
+  * Paragraph extraction with anchor metadata
+  * Anchor ID validation and text processing analysis
+  * Support for both SEN-xxxxx and P-xxxxx anchor formats
+
+* **Shared Dependencies** (via newsfrontier-lib):
+  * SQLAlchemy ORM models for all database entities
+  * Pydantic schemas for request/response validation
+  * CRUD operations with type-safe database access
+  * AI client integration for topic embedding generation
+
+#### APIs
+
+The backend provides a comprehensive RESTful API built with FastAPI, featuring automatic OpenAPI documentation and async request handling.
+
+**Base URL**: `/api`
+
+##### Authentication Endpoints
+* **`POST /api/login`** - User authentication and session creation
+  * Request: `{username: string, password: string}`
+  * Response: `{token: string, user_id: number, expires: string, user: UserResponse}`
+  * Sets HTTP-only authentication cookie for session management
+  
+* **`POST /api/register`** - New user registration with validation
+  * Request: `{username: string, password: string, email: string}`
+  * Response: `{user_id: number, message: string}`
+  * Validates unique username and email, creates secure password hash
+  
+* **`POST /api/logout`** - User session termination
+  * Headers: `Authorization: Bearer <token>`
+  * Response: `{message: string}`
+  * Clears authentication cookie and invalidates session
+
+##### User Management
+* **`GET /api/user/me`** - Get current user profile information
+  * Headers: `Authorization: Bearer <token>`
+  * Response: `UserResponse` with user details, credits, and settings
+  
+* **`PUT /api/user/settings`** - Update user preferences and configuration
+  * Headers: `Authorization: Bearer <token>`
+  * Request: `{daily_summary_prompt?: string, ...}`
+  * Response: `{message: string}`
+
+##### Dashboard & Analytics
+* **`GET /api/today`** - Daily personalized news summary and statistics
+  * Headers: `Authorization: Bearer <token>`
+  * Query: `?date=YYYY-MM-DD` (optional, defaults to today)
+  * Response: `TodayResponse` with daily summary, article counts, top topics, and trending keywords
+  
+* **`GET /api/available-dates`** - Get available summary dates for calendar navigation
+  * Headers: `Authorization: Bearer <token>`
+  * Query: `?year=2024&month=1`
+  * Response: `{month: string, available_dates: string[]}`
+
+##### Topic Management
+* **`GET /api/topics`** - List all user topics with activity metrics
+  * Headers: `Authorization: Bearer <token>`
+  * Response: `TopicResponse[]` with topic details and statistics
+  
+* **`POST /api/topics`** - Create new topic with automatic vector generation
+  * Headers: `Authorization: Bearer <token>`
+  * Request: `TopicCreate` with name and optional keywords
+  * Response: `TopicResponse` with generated topic vector
+  
+* **`GET /api/topics/{id}`** - Get specific topic details and related clusters
+  * Headers: `Authorization: Bearer <token>`
+  * Response: `TopicResponse` with associated clusters and articles
+  
+* **`PUT /api/topics/{id}`** - Update topic configuration and settings
+  * Headers: `Authorization: Bearer <token>`
+  * Request: `TopicUpdate` with name, keywords, or active status
+  * Response: `TopicResponse` with updated information
+  
+* **`DELETE /api/topics/{id}`** - Delete topic and associated data
+  * Headers: `Authorization: Bearer <token>`
+  * Response: `{message: string}`
+
+##### Content Discovery
+* **`GET /api/topic/{id}`** - Get AI-generated clusters for specific topic
+  * Headers: `Authorization: Bearer <token>`
+  * Query: `?limit=20&offset=0&since=YYYY-MM-DD`
+  * Response: `{topic: TopicResponse, events: EventResponse[]}`
+  
+* **`GET /api/cluster/{id}`** - Detailed cluster information with associated articles
+  * Headers: `Authorization: Bearer <token>`
+  * Response: `EventDetailResponse` with cluster details and article list
+  
+* **`GET /api/article/{id}`** - Individual article with AI-generated insights
+  * Headers: `Authorization: Bearer <token>`
+  * Response: `RSSItemDetailResponse` with content, summary, and metadata
+  
+* **`GET /api/articles`** - List articles with filtering and pagination
+  * Headers: `Authorization: Bearer <token>`
+  * Query: `?limit=50&offset=0&status=completed&topic_id=1`
+  * Response: `PaginatedResponse<RSSItemResponse[]>`
+
+##### RSS Feed Management
+* **`GET /api/feeds`** - List user's RSS subscriptions and feed status
+  * Headers: `Authorization: Bearer <token>`
+  * Response: `RSSSubscriptionResponse[]` with feed details and fetch status
+  
+* **`POST /api/feeds`** - Add new RSS feed subscription
+  * Headers: `Authorization: Bearer <token>`
+  * Request: `RSSSubscriptionCreate` with feed URL and optional alias
+  * Response: `RSSSubscriptionResponse` with subscription details
+  
+* **`PUT /api/feeds/{uuid}`** - Update RSS subscription settings
+  * Headers: `Authorization: Bearer <token>`
+  * Request: `RSSSubscriptionUpdate` with alias or active status
+  * Response: `RSSSubscriptionResponse` with updated settings
+  
+* **`DELETE /api/feeds/{uuid}`** - Remove RSS feed subscription
+  * Headers: `Authorization: Bearer <token>`
+  * Response: `{message: string}`
+
+##### Internal Service APIs (Inter-service Communication)
+* **`GET /api/internal/articles/pending`** - Get articles awaiting AI processing
+  * Used by postprocess service to fetch unprocessed articles
+  * Response: `RSSItemResponse[]` with processing status and metadata
+  
+* **`POST /api/internal/articles/{id}/process`** - Update article processing results
+  * Used by postprocess service to store AI-generated content
+  * Request: Processing results with summaries, embeddings, and analysis
+  
+* **`GET /api/internal/feeds/pending`** - Get RSS feeds due for fetching
+  * Used by scraper service to determine which feeds to process
+  * Response: `RSSFeedResponse[]` with fetch schedules and intervals
+  
+* **`POST /api/internal/feeds/{id}/status`** - Update feed fetch status
+  * Used by scraper service to report fetch results and errors
+  * Request: Fetch status, timing, and error information
+
+##### System Administration (Admin Only)
+* **`GET /api/admin/users`** - List all users with comprehensive statistics
+  * Headers: `Authorization: Bearer <admin_token>`
+  * Response: `UserResponse[]` with user details, activity metrics, and admin flags
+  
+* **`GET /api/admin/system-stats`** - System-wide performance and health metrics
+  * Headers: `Authorization: Bearer <admin_token>`
+  * Response: System statistics including processing queues, active feeds, and performance data
+  
+* **`POST /api/admin/system-settings`** - Update global system configuration
+  * Headers: `Authorization: Bearer <admin_token>`
+  * Request: `SystemSettingCreate` with configuration key-value pairs
+  * Response: `SystemSettingResponse` with updated settings
+  
+* **`GET /api/admin/system-settings`** - Retrieve system configuration settings
+  * Headers: `Authorization: Bearer <admin_token>`
+  * Response: `SystemSettingResponse[]` with all system settings and metadata
+
+##### Error Responses
+All endpoints return standardized error responses:
+```json
+{
+  "error": "error_code",
+  "message": "Human-readable error description",
+  "details": "Additional context (optional)"
+}
+```
+
+**Common HTTP Status Codes:**
+* `200` - Success
+* `201` - Created
+* `400` - Bad Request (validation errors)
+* `401` - Unauthorized (invalid/missing token)
+* `403` - Forbidden (insufficient permissions)
+* `404` - Not Found
+* `422` - Unprocessable Entity (invalid data format)
+* `500` - Internal Server Error
+
+#### Backend Project Architecture
+
+The backend follows a streamlined FastAPI architecture with a minimal file footprint, optimized for maintainability and direct integration:
+
+```
+backend/
+├── main.py                    # Complete FastAPI application with all endpoints
+├── text_processor.py          # HTML text processing utilities
+├── pyproject.toml            # Python dependencies and project metadata
+├── server.log                # Application log file
+└── uv.lock                   # Dependency lock file
+
+# Shared Dependencies (../lib/newsfrontier-lib)
+../lib/newsfrontier-lib
+├── models.py                 # SQLAlchemy database models
+├── database.py               # Database connection and session management  
+├── crud.py                   # Database operations (Create, Read, Update, Delete)
+├── schemas.py                # Pydantic request/response schemas
+├── llm_client.py             # AI/LLM integration utilities
+├── s3_client.py              # S3 storage client
+└── __init__.py              # Package initialization with utility exports
+```
+
+**Core Architecture Components:**
+
+##### `main.py` - Monolithic Application Design
+* **Complete API Implementation**: All endpoints in single file for simplified deployment
+* **FastAPI App Configuration**: CORS middleware, request logging, and global exception handling
+* **Authentication System**: JWT token generation, validation, and user session management
+* **Database Integration**: Direct integration with newsfrontier-lib for all data operations
+* **Middleware Pipeline**: Request/response logging with performance timing and error tracking
+* **API Categories**: Authentication, user management, dashboard analytics, content discovery, RSS management, and admin endpoints
+
+##### `text_processor.py` - Content Processing Utilities
+* **HTML Anchor Processing**: Automatic insertion of paragraph anchors for article content
+* **Content Analysis**: Text processing strategy determination based on HTML structure
+* **Anchor Management**: Generation, validation, and extraction of both P-xxxxx and SEN-xxxxx format anchors
+* **Error Handling**: Graceful fallback to original content when processing fails
+
+##### Database Layer (`../lib/`)
+* **`models.py`** - SQLAlchemy ORM Models
+  * User authentication and authorization models
+  * RSS feeds and subscription relationships
+  * Article metadata with vector embeddings
+  * Topic and cluster classification schemas
+  * Processing status tracking for AI workflows
+
+* **`database.py`** - Connection Management
+  * Async PostgreSQL connection with pgvector extension
+  * Connection pooling for high-concurrency handling
+  * Database migration support and health checks
+  * Transaction management for data consistency
+
+* **`crud.py`** - Data Access Layer
+  * Type-safe database operations using SQLAlchemy async sessions
+  * Complex queries for vector similarity search using pgvector
+  * Bulk operations for AI processing workflows
+  * Optimized queries for dashboard analytics and reporting
+
+* **`schemas.py`** - API Contracts
+  * Pydantic models for request validation and serialization
+  * Response schemas with computed fields for frontend consumption
+  * Type-safe data transformation between database models and API responses
+  * Validation rules for user input and system constraints
+
+**Key Design Patterns:**
+
+##### Async-First Architecture
+* All database operations use async/await patterns for non-blocking I/O
+* FastAPI's async request handling minimizes resource consumption
+* Background task queuing for AI processing workflows
+* Concurrent RSS feed processing and content analysis
+
+##### Dependency Injection
+* FastAPI's dependency system for database sessions, authentication, and configuration
+* Modular service layers for AI integration (LLM, embedding, clustering)
+* Environment-based configuration injection for different deployment contexts
+* Testing-friendly architecture with mockable dependencies
+
+##### Error Handling & Logging
+* Structured logging with contextual information for debugging
+* Graceful error recovery with retry mechanisms for AI services
+* User-friendly error messages with technical details for debugging
+* Performance monitoring and health check endpoints
+
+##### Security Implementation
+* JWT-based authentication with configurable expiration
+* Password hashing using bcrypt with salted rounds
+* Role-based access control (user/admin permissions)
+* Input validation and SQL injection prevention
+* Rate limiting and request throttling capabilities
 
 ### Frontend Application  
 * **Language**: TypeScript for type-safe development
@@ -227,8 +530,8 @@ The project uses a **uv workspace** structure in the root directory with Git ver
 
 #### Key Pages & Components
 * **Dashboard**: Personalized news overview
-  * Daily news summary and trending topic insights
-  * Quick access to most relevant news clusters
+  * Daily news summary
+  * The daily news includes reference links to articles or clusters.
 
 * **News Explorer**: Hierarchical news browsing with intelligent clustering
   * **Topics List**: User-defined interest categories with activity indicators
@@ -332,12 +635,21 @@ src/
 
 #### PostProcess AI Service  
 * **Language**: Python 3.11+
-* **Architecture**: UV workspace member
+* **Architecture**: UV workspace member with AI processing pipeline
 * **AI/ML Stack**:
-  * **LLM Integration**: OpenAI/Anthropic APIs for summarization
-  * **Embeddings**: OpenAI text-embedding-ada-002 or similar
-  * **Vector Storage**: pgvector for similarity search
-  * **Clustering**: Scikit-learn DBSCAN/K-means algorithms
+  * **LLM Integration**: Google AI (Gemini) for content analysis and summarization
+  * **Models**: Gemini-2.0-Flash-Lite (fast), Gemini-2.5-Pro (advanced analysis)
+  * **Embeddings**: gemini-embedding-001 with 768-dimensional vectors
+  * **Vector Storage**: pgvector for similarity search and clustering
+  * **Image Generation**: Imagen-3.0-Generate-002 for cover images
+  * **Clustering**: Scikit-learn with LLM-based decision making
+* **Key Capabilities**:
+  * Content analysis with topic extraction and entity recognition
+  * Intelligent clustering with context-aware decisions
+  * Personalized daily summaries with structured markdown output
+  * AI prompt testing framework for development and debugging
+  * S3 integration for cover image storage
+  * FastAPI internal server for inter-service communication
 
 #### Shared Library (`lib`)
 * **Language**: Python 3.11+
@@ -355,39 +667,6 @@ src/
 ### `scripts/dev.sh` - Development Environment Setup
 Automated development environment launcher that orchestrates all services:
 
-```bash
-#!/bin/bash
-# 1. Start PostgreSQL with pgvector extension
-docker run -d --rm --name newsfrontier-db \
-  -e POSTGRES_DB=newsfrontier_db \
-  -e POSTGRES_USER=newsfrontier \
-  -e POSTGRES_PASSWORD=dev_password \
-  -p 5432:5432 \
-  -v "$(pwd)/data:/var/lib/postgresql/data" \
-  -v "$(pwd)/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql" \
-  pgvector/pgvector:pg17
-
-# 2. Initialize database schema
-psql -h localhost -U newsfrontier -d newsfrontier_db -f scripts/init.sql
-
-# 3. Start all services concurrently
-# Backend API server (FastAPI with hot reload)
-cd backend && uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
-
-# Frontend development server (Next.js with hot reload)  
-cd frontend && npm run dev &
-
-# RSS Scraper worker (background process)
-cd scraper && uv run python main.py --daemon &
-
-# AI PostProcess worker (background process)
-cd postprocess && uv run python main.py --daemon &
-
-# TODO: trap Ctrl+C to gracefully kill all processes above
-
-wait # Keep script running until all processes complete
-```
-
 ### `scripts/init.sql` - Database Schema Initialization
 Complete PostgreSQL schema setup with pgvector extension:
 * User authentication tables with secure password hashing
@@ -399,93 +678,62 @@ Complete PostgreSQL schema setup with pgvector extension:
 ## Production Deployment
 
 ### Docker Compose Configuration
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  database:
-    image: pgvector/pgvector:pg17
-    environment:
-      POSTGRES_DB: newsfrontier_db
-      POSTGRES_USER: newsfrontier
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - ./data:/var/lib/postgresql/data
-      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U newsfrontier -d newsfrontier_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      
-  backend:
-    build: ./backend
-    environment:
-      DATABASE_URL: postgresql://newsfrontier:${DB_PASSWORD}@database:5432/newsfrontier_db
-      JWT_SECRET: ${JWT_SECRET}
-      LLM_API_KEY: ${LLM_API_KEY}
-      LLM_API_URL: ${LLM_API_URL}
-      EMBEDDING_API_URL: ${EMBEDDING_API_URL}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    depends_on:
-      database:
-        condition: service_healthy
-    ports:
-      - "8000:8000"
-    restart: unless-stopped
-      
-  frontend:
-    build: ./frontend
-    environment:
-      NEXT_PUBLIC_API_URL: http://backend:8000
-    depends_on:
-      - backend
-    ports:
-      - "3000:3000"
-    restart: unless-stopped
 
-  scraper:
-    build: ./scraper
-    environment:
-      DATABASE_URL: postgresql://newsfrontier:${DB_PASSWORD}@database:5432/newsfrontier_db
-      DEFAULT_RSS_INTERVAL: ${DEFAULT_RSS_INTERVAL:-60}
-      SCRAPER_CONCURRENT_FEEDS: ${SCRAPER_CONCURRENT_FEEDS:-5}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    depends_on:
-      database:
-        condition: service_healthy
-    restart: unless-stopped
-    volumes:
-      - ./logs/scraper:/app/logs
+The project includes a complete `docker-compose.yml` configuration that orchestrates all NewsFrontier services in a containerized environment. The setup follows the architecture and environment variables defined in the development script (`scripts/dev.sh`).
 
-  postprocess:
-    build: ./postprocess  
-    environment:
-      DATABASE_URL: postgresql://newsfrontier:${DB_PASSWORD}@database:5432/newsfrontier_db
-      LLM_API_KEY: ${LLM_API_KEY}
-      LLM_API_URL: ${LLM_API_URL}
-      LLM_MODEL_SUMMARY: ${LLM_MODEL_SUMMARY:-gpt-3.5-turbo}
-      EMBEDDING_API_URL: ${EMBEDDING_API_URL}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-ada-002}
-      POSTPROCESS_BATCH_SIZE: ${POSTPROCESS_BATCH_SIZE:-10}
-      MAX_PROCESSING_ATTEMPTS: ${MAX_PROCESSING_ATTEMPTS:-3}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    depends_on:
-      database:
-        condition: service_healthy
-    restart: unless-stopped
-    volumes:
-      - ./logs/postprocess:/app/logs
+#### Service Architecture:
 
-networks:
-  default:
-    name: newsfrontier-network
+**Database Service (`newsfrontier-db`):**
+- Uses `pgvector/pgvector:pg17` image with vector extension support
+- Configures PostgreSQL with environment-based credentials
+- Mounts persistent data volume and initialization script
+- Includes health checks for service dependency management
+- Exposes port 5432 for external database access
 
-volumes:
-  postgres_data:
-    driver: local
+**Backend Service (`newsfrontier-backend`):**
+- Builds from `./backend` directory with Dockerfile
+- Configures complete AI/ML environment (LLM APIs, embedding services)
+- Includes all security settings (JWT, bcrypt) and processing parameters
+- Depends on healthy database service before starting
+- Exposes FastAPI server on port 8000 with log volume mounting
+
+**Frontend Service (`newsfrontier-frontend`):**
+- Builds Next.js application from `./frontend` directory
+- Configures API endpoint for backend communication
+- Exposes web application on port 3000
+- Depends on backend service availability
+
+**Scraper Service (`newsfrontier-scraper`):**
+- Builds RSS scraping service from `./scraper` directory
+- Configures RSS fetching parameters and database connection
+- Runs in daemon mode with log file persistence
+- Depends on healthy database service
+
+**Postprocess Service (`newsfrontier-postprocess`):**
+- Builds AI processing service from `./postprocess` directory
+- Configures complete AI pipeline (LLM, embeddings, image generation)
+- Includes S3 storage configuration for cover images
+- Runs in daemon mode with comprehensive logging
+
+#### Deployment Features:
+
+- **Environment Variable Integration**: All services use `.env` file variables with sensible defaults
+- **Service Dependencies**: Proper startup order with health check dependencies
+- **Persistent Storage**: Database data persistence and log file mounting
+- **Network Isolation**: Services communicate through internal Docker network
+- **Restart Policies**: Automatic service restart on failure
+- **Resource Management**: Container naming and volume management
+
+#### Usage:
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f [service-name]
+
+# Stop all services
+docker-compose down
 ```
 
 ## Database Design
@@ -495,185 +743,291 @@ volumes:
 * **Error Recovery Support**: All processing tables include status tracking for reliable restart and recovery
 * **Scalable Architecture**: Vector embeddings and clustering designed for high-volume news processing
 
-### Tables
+### Database Schema
 
-#### `users`
-* `id` - SERIAL PRIMARY KEY
+#### Core User Management
+
+##### `users` - User authentication and profile information
+* `id` - INTEGER PRIMARY KEY (auto-increment)
 * `username` - VARCHAR(50) UNIQUE NOT NULL
-* `password_hash` - VARCHAR(255) NOT NULL (salted bcrypt hash)
-* `email` - VARCHAR(255) UNIQUE
-* `is_admin` - BOOLEAN DEFAULT FALSE
-* `daily_summary_prompt` - TEXT
+* `password_hash` - VARCHAR(255) NOT NULL (bcrypt salted hash)
+* `email` - VARCHAR(255) UNIQUE NOT NULL (email validation)
+* `is_admin` - BOOLEAN DEFAULT FALSE (role-based access control)
+* `credits` - INTEGER DEFAULT 0 CHECK (credits >= 0) (user credit system)
+* `credits_accrual` - INTEGER DEFAULT 0 CHECK (credits_accrual >= 0) (earned credits)
+* `daily_summary_prompt` - TEXT (personalized AI prompt)
+* `created_at` - TIMESTAMP DEFAULT NOW()
+* `updated_at` - TIMESTAMP DEFAULT NOW() (auto-update trigger)
+
+**Relationships:**
+- One-to-many with topics, clusters, summaries, RSS subscriptions
+
+#### RSS Feed Management
+
+##### `rss_feeds` - RSS feed source configuration
+* `id` - INTEGER PRIMARY KEY (auto-increment)
+* `uuid` - UUID UNIQUE NOT NULL DEFAULT gen_random_uuid() (stable external identifier)
+* `url` - TEXT NOT NULL UNIQUE (RSS feed URL)
+* `title` - VARCHAR(255) (extracted from feed metadata)
+* `description` - TEXT (feed description)
+* `last_fetch_at` - TIMESTAMP (most recent fetch time)
+* `last_fetch_status` - VARCHAR(50) DEFAULT 'pending' CHECK (last_fetch_status IN ('pending', 'success', 'failed', 'timeout'))
+* `fetch_interval_minutes` - INTEGER DEFAULT 60 (configurable fetch frequency)
 * `created_at` - TIMESTAMP DEFAULT NOW()
 * `updated_at` - TIMESTAMP DEFAULT NOW()
 
-#### `rss_feeds` (RSS Feed Sources)
-* `id` - SERIAL PRIMARY KEY
-* `uuid` - UUID UNIQUE NOT NULL DEFAULT gen_random_uuid()
-* `url` - TEXT NOT NULL
-* `title` - VARCHAR(255)
-* `description` - TEXT
-* `created_at` - TIMESTAMP DEFAULT NOW()
-* `updated_at` - TIMESTAMP DEFAULT NOW()
-* `last_fetch_at` - TIMESTAMP
-* `last_fetch_status` - VARCHAR(50) DEFAULT 'pending'
-* `fetch_interval_minutes` - INTEGER DEFAULT 60
+**Design Note:** UUID serves as stable identifier when URLs change
 
-Note: `uuid` serves as stable identifier when URLs change
-
-#### `rss_subscriptions` (User RSS Subscriptions)
+##### `rss_subscriptions` - User RSS feed subscriptions (many-to-many)
 * `user_id` - INTEGER REFERENCES users(id) ON DELETE CASCADE
 * `rss_uuid` - UUID REFERENCES rss_feeds(uuid) ON DELETE CASCADE
 * `alias` - VARCHAR(255) (user-defined feed name)
-* `is_active` - BOOLEAN DEFAULT TRUE
+* `is_active` - BOOLEAN DEFAULT TRUE (subscription toggle)
 * `created_at` - TIMESTAMP DEFAULT NOW()
-* PRIMARY KEY (user_id, rss_uuid)
+* **PRIMARY KEY** (user_id, rss_uuid)
 
-#### `rss_fetch_records` (Raw RSS Content - Immutable)
-* `id` - SERIAL PRIMARY KEY
+##### `rss_fetch_records` - Raw RSS content with deduplication
+* `id` - INTEGER PRIMARY KEY (auto-increment)
 * `rss_feed_id` - INTEGER REFERENCES rss_feeds(id) ON DELETE CASCADE
-* `raw_content` - TEXT NOT NULL (original RSS XML/JSON)
+* `raw_content` - TEXT NOT NULL (original RSS XML/JSON content)
 * `content_hash` - VARCHAR(64) NOT NULL (SHA256 for deduplication)
-* `fetch_timestamp` - TIMESTAMP DEFAULT NOW()
-* `http_status` - INTEGER
-* `content_encoding` - VARCHAR(50)
+* `first_fetch_timestamp` - TIMESTAMP DEFAULT NOW() (initial discovery)
+* `last_fetch_timestamp` - TIMESTAMP DEFAULT NOW() (most recent fetch)
+* `http_status` - INTEGER (HTTP response code)
+* `content_encoding` - VARCHAR(50) (content encoding type)
 
-#### `rss_items_metadata` (AI-Extracted Article Data)
-* `id` - SERIAL PRIMARY KEY
+**Design Pattern:** Separates raw RSS data from processed articles for data integrity
+
+#### Article Processing Pipeline
+
+##### `rss_items_metadata` - AI-extracted article data
+* `id` - INTEGER PRIMARY KEY (auto-increment)
 * `rss_fetch_record_id` - INTEGER REFERENCES rss_fetch_records(id) ON DELETE CASCADE
-* `guid` - TEXT (RSS item GUID)
-* `title` - TEXT NOT NULL
-* `content` - TEXT
-* `url` - TEXT
-* `published_at` - TIMESTAMP
-* `author` - VARCHAR(255)
-* `category` - VARCHAR(255)
+* `guid` - TEXT (RSS item GUID for deduplication)
+* `title` - TEXT NOT NULL (article title)
+* `content` - TEXT (full article content)
+* `url` - TEXT (article URL)
+* `published_at` - TIMESTAMP (article publication time)
+* `author` - VARCHAR(255) (article author)
+* `category` - VARCHAR(255) (article category/topic)
 * `processing_status` - VARCHAR(20) DEFAULT 'pending' CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed'))
-* `processing_started_at` - TIMESTAMP
-* `processing_completed_at` - TIMESTAMP
-* `processing_attempts` - INTEGER DEFAULT 0
-* `last_error_message` - TEXT
+* `processing_started_at` - TIMESTAMP (AI processing start time)
+* `processing_completed_at` - TIMESTAMP (AI processing completion time)
+* `processing_attempts` - INTEGER DEFAULT 0 CHECK (processing_attempts >= 0 AND processing_attempts <= 10)
+* `last_error_message` - TEXT (error tracking for debugging)
+* `created_at` - TIMESTAMP DEFAULT NOW()
+* **UNIQUE CONSTRAINT:** (rss_fetch_record_id, guid) - prevents duplicate articles per feed
+
+##### `rss_item_derivatives` - AI-generated content and embeddings
+* `id` - INTEGER PRIMARY KEY (auto-increment)
+* `rss_item_id` - INTEGER UNIQUE REFERENCES rss_items_metadata(id) ON DELETE CASCADE (one-to-one relationship)
+* `summary` - TEXT (AI-generated article summary)
+* `title_embedding` - VECTOR(dynamic_dimension) (pgvector title embeddings)
+* `summary_embedding` - VECTOR(dynamic_dimension) (pgvector summary embeddings)
+* `processing_status` - VARCHAR(20) DEFAULT 'pending' CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed'))
+* `summary_generated_at` - TIMESTAMP (LLM processing timestamp)
+* `embeddings_generated_at` - TIMESTAMP (embedding generation timestamp)
+* `processing_attempts` - INTEGER DEFAULT 0 (retry counter)
+* `last_error_message` - TEXT (AI processing error details)
+* `llm_model_version` - VARCHAR(100) (AI model version tracking)
+* `embedding_model_version` - VARCHAR(100) (embedding model version)
 * `created_at` - TIMESTAMP DEFAULT NOW()
 
-#### `rss_item_derivatives` (AI-Generated Content)
-* `id` - SERIAL PRIMARY KEY
-* `rss_item_id` - INTEGER REFERENCES rss_items_metadata(id) ON DELETE CASCADE
-* `summary` - TEXT
-* `title_embedding` - VECTOR(1536) (pgvector for similarity search)
-* `summary_embedding` - VECTOR(1536)
-* `processing_status` - VARCHAR(20) DEFAULT 'pending' CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed'))
-* `summary_generated_at` - TIMESTAMP
-* `embeddings_generated_at` - TIMESTAMP
-* `processing_attempts` - INTEGER DEFAULT 0
-* `last_error_message` - TEXT
-* `llm_model_version` - VARCHAR(100)
-* `embedding_model_version` - VARCHAR(100)
-* `created_at` - TIMESTAMP DEFAULT NOW()
+**Vector Dimensions:** Configurable via environment variable (default: 1536 for OpenAI compatibility)
 
-#### `topics`
-* `id` - SERIAL PRIMARY KEY
+#### Topic and Cluster Management
+
+##### `topics` - User-defined news categorization
+* `id` - INTEGER PRIMARY KEY (auto-increment)
 * `user_id` - INTEGER REFERENCES users(id) ON DELETE CASCADE
-* `name` - VARCHAR(255) NOT NULL
-* `keywords` - TEXT[] (PostgreSQL array of keywords)
-* `topic_vector` - VECTOR(1536)
-* `is_active` - BOOLEAN DEFAULT TRUE
+* `name` - VARCHAR(255) NOT NULL (topic name)
+* `topic_vector` - VECTOR(dynamic_dimension) (AI-generated topic embedding)
+* `is_active` - BOOLEAN DEFAULT TRUE (topic status toggle)
 * `created_at` - TIMESTAMP DEFAULT NOW()
 * `updated_at` - TIMESTAMP DEFAULT NOW()
+* **UNIQUE CONSTRAINT:** (user_id, name) - prevents duplicate topic names per user
 
-#### `article_topics` (Many-to-Many: Articles ↔ Topics)
-* `rss_item_id` - INTEGER REFERENCES rss_items_metadata(id) ON DELETE CASCADE
-* `topic_id` - INTEGER REFERENCES topics(id) ON DELETE CASCADE
-* `relevance_score` - FLOAT (0.0 to 1.0)
-* `created_at` - TIMESTAMP DEFAULT NOW()
-* PRIMARY KEY (rss_item_id, topic_id)
-
-#### `clusters`
-* `id` - SERIAL PRIMARY KEY
-* `friendly_name` - VARCHAR(255)
-* `description` - TEXT
-* `centroid_vector` - VECTOR(1536)
-* `cluster_radius` - FLOAT
-* `article_count` - INTEGER DEFAULT 0
-* `created_at` - TIMESTAMP DEFAULT NOW()
-* `updated_at` - TIMESTAMP DEFAULT NOW()
-
-#### `article_clusters` (Many-to-Many: Articles ↔ Clusters)
-* `rss_item_id` - INTEGER REFERENCES rss_items_metadata(id) ON DELETE CASCADE
-* `cluster_id` - INTEGER REFERENCES clusters(id) ON DELETE CASCADE
-* `distance_to_centroid` - FLOAT
-* `created_at` - TIMESTAMP DEFAULT NOW()
-* PRIMARY KEY (rss_item_id, cluster_id)
-
-#### `user_topics` (Many-to-Many: Users ↔ Topics)
+##### `events` - News event clusters extracted from article analysis
+* `id` - INTEGER PRIMARY KEY (auto-increment)
 * `user_id` - INTEGER REFERENCES users(id) ON DELETE CASCADE
 * `topic_id` - INTEGER REFERENCES topics(id) ON DELETE CASCADE
-* `priority` - INTEGER DEFAULT 1
+* `title` - VARCHAR(500) NOT NULL (cluster title)
+* `description` - TEXT (cluster description)
+* `event_description` - TEXT (detailed event analysis)
+* `event_embedding` - VECTOR(dynamic_dimension) (event vector representation)
+* `last_updated_at` - TIMESTAMP DEFAULT NOW() (event evolution tracking)
 * `created_at` - TIMESTAMP DEFAULT NOW()
-* PRIMARY KEY (user_id, topic_id)
-
-#### `user_summaries`
-* `id` - SERIAL PRIMARY KEY
-* `user_id` - INTEGER REFERENCES users(id) ON DELETE CASCADE
-* `summary` - TEXT
-* `date` - TIMESTAMP
-* `created_at` - TIMESTAMP DEFAULT NOW()
-
-#### `system_settings`
-* `id` - SERIAL PRIMARY KEY
-* `setting_key` - VARCHAR(100) UNIQUE NOT NULL
-* `setting_value` - TEXT
-* `description` - TEXT
 * `updated_at` - TIMESTAMP DEFAULT NOW()
-* `updated_by` - INTEGER REFERENCES users(id)
+
+#### Relationship Tables (Many-to-Many)
+
+##### `article_topics` - Article-topic associations with relevance scoring
+* `rss_item_id` - INTEGER REFERENCES rss_items_metadata(id) ON DELETE CASCADE
+* `topic_id` - INTEGER REFERENCES topics(id) ON DELETE CASCADE
+* `relevance_score` - FLOAT CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0) (AI-computed relevance)
+* `created_at` - TIMESTAMP DEFAULT NOW()
+* **PRIMARY KEY** (rss_item_id, topic_id)
+
+##### `article_events` - Article-event cluster associations
+* `rss_item_id` - INTEGER REFERENCES rss_items_metadata(id) ON DELETE CASCADE
+* `event_id` - INTEGER REFERENCES events(id) ON DELETE CASCADE
+* `relevance_score` - FLOAT CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0) (clustering confidence)
+* `created_at` - TIMESTAMP DEFAULT NOW()
+* **PRIMARY KEY** (rss_item_id, event_id)
+
+##### `user_topics` - User topic preferences and prioritization
+* `user_id` - INTEGER REFERENCES users(id) ON DELETE CASCADE
+* `topic_id` - INTEGER REFERENCES topics(id) ON DELETE CASCADE
+* `priority` - INTEGER DEFAULT 1 CHECK (priority >= 1 AND priority <= 10) (user preference ranking)
+* `notification_enabled` - BOOLEAN DEFAULT TRUE (notification settings)
+* `created_at` - TIMESTAMP DEFAULT NOW()
+* **PRIMARY KEY** (user_id, topic_id)
+
+#### Daily Summaries and System Configuration
+
+##### `user_summaries` - Daily personalized news summaries
+* `id` - INTEGER PRIMARY KEY (auto-increment)
+* `user_id` - INTEGER REFERENCES users(id) ON DELETE CASCADE
+* `summary` - TEXT (AI-generated daily summary)
+* `cover_arguments` - TEXT (cover image generation parameters)
+* `cover_prompt` - TEXT (AI image generation prompt)
+* `cover_seed` - INTEGER (image generation seed for reproducibility)
+* `cover_s3key` - TEXT (S3 storage key for generated cover image)
+* `date` - DATE NOT NULL (summary date)
+* `created_at` - TIMESTAMP DEFAULT NOW()
+* **UNIQUE CONSTRAINT:** (user_id, date) - one summary per user per day
+
+##### `system_settings` - Global system configuration
+* `id` - INTEGER PRIMARY KEY (auto-increment)
+* `setting_key` - VARCHAR(100) UNIQUE NOT NULL (configuration key)
+* `setting_value` - TEXT (configuration value)
+* `setting_type` - VARCHAR(20) DEFAULT 'string' CHECK (setting_type IN ('string', 'integer', 'boolean', 'json', 'float'))
+* `description` - TEXT (setting documentation)
+* `is_public` - BOOLEAN DEFAULT FALSE (public/private setting flag)
+* `updated_at` - TIMESTAMP DEFAULT NOW()
+* `updated_by` - INTEGER REFERENCES users(id) ON DELETE SET NULL (audit trail)
+* `created_at` - TIMESTAMP DEFAULT NOW()
 
 **Common System Settings:**
-* `llm_api_url` - Primary LLM service endpoint
-* `llm_api_key_hash` - Encrypted API key storage
-* `embedding_api_url` - Vector embedding service endpoint  
-* `transcript_api_url` - Speech-to-text service endpoint
-* `tts_api_url` - Text-to-speech service endpoint
-* `default_rss_fetch_interval` - Default RSS polling interval (minutes)
-* `max_processing_attempts` - Maximum retry attempts for failed processing 
+
+**Processing Configuration:**
+* `default_rss_fetch_interval` - Default RSS polling interval in minutes (default: 60)
+* `max_processing_attempts` - Maximum retry attempts for failed processing (default: 3)
+* `embedding_dimension` - Vector dimension size (default: 768)
+* `max_articles_per_event` - Maximum articles to associate with a single event (default: 50)
+
+**AI Clustering Thresholds:**
+* `similarity_threshold` - Minimum similarity score for clustering articles (default: 0.62)
+* `cluster_threshold` - Minimum embedding similarity score for direct event assignment (default: 0.7)
+
+**AI System Prompts (Private Settings):**
+* `prompt_summary_creation` - Template prompt for generating article summaries with bullet points and anchor links
+* `prompt_cluster_detection` - Template prompt for creating new event clusters
+* `prompt_daily_summary_system` - System prompt for creating personalized daily news summaries with markdown links
+* `prompt_cover_image_generation` - Template prompt for generating cover image descriptions for daily summaries
+
+**Prompt Features:**
+- Article summarization with anchor link preservation (`<a id="P-67890">` → `[text](#P-67890)`)
+- Event clustering with topic hierarchy enforcement (one level below user topics)
+- Daily summary generation with structured markdown links to dashboard pages
+- Cover image prompt generation with professional editorial illustration guidelines
+
+### Database Performance Optimizations
+
+#### Vector Search Performance
+* **pgvector Extensions**: All vector columns use IVFFlat indexes for fast similarity search
+* **Index Tuning**: Vector indexes configured with `lists = 100` for optimal performance
+* **Embedding Dimensions**: Consistent 1536-dimensional vectors across all tables
+
+#### Query Performance Enhancements
+* **Composite Indexes**: Multi-column indexes for common query patterns
+* **Partial Indexes**: Status-based filtering optimized with dedicated indexes  
+* **Time-Series Optimization**: DESC indexes on timestamp columns for recent data queries
+
+#### Data Integrity Safeguards
+* **Constraint Validation**: CHECK constraints prevent invalid data states
+* **Referential Integrity**: Proper CASCADE/SET NULL behaviors for foreign keys
+* **Unique Constraints**: Business logic constraints prevent duplicate data
+* **Processing Limits**: Bounded retry attempts prevent infinite processing loops
+
+#### Maintenance Recommendations
+* **Regular VACUUM**: Vector indexes benefit from periodic maintenance
+* **Index Monitoring**: Monitor query performance and adjust `lists` parameter as data grows
+* **Partition Strategy**: Consider partitioning large tables by date for improved performance
+* **Archive Strategy**: Implement data retention policies for historical records
 
 
 ### Environment Variables
 
 #### Required Configuration
+Copy `.env.template` to `.env` and configure the following variables:
+
 **Database & Core Services:**
-* `DATABASE_URL` - PostgreSQL connection string (postgresql://user:pass@host:port/dbname)
+* `DATABASE_URL` - PostgreSQL connection string 
+  * Format: `postgresql://newsfrontier:dev_password@localhost:5432/newsfrontier_db`
 * `DB_PASSWORD` - PostgreSQL database password
-* `REDIS_URL` - Redis connection string for caching and session storage (optional)
+* `S3API_REGION` - S3-compatible storage region
+* `S3API_ENDPOINT` - S3-compatible storage endpoint URL
+* `S3API_BUCKET` - S3 bucket name for cover image storage
+* `S3API_KEY_ID` - S3 access key ID
+* `S3API_KEY` - S3 secret access key
 
 **Security & Authentication:**
-* `JWT_SECRET` - Secret key for JWT token signing (use strong random string)
+* `JWT_SECRET` - Secret key for JWT token signing (use strong random string in production)
+  * Default: `your-super-secret-jwt-key-change-this-in-production`
 * `JWT_EXPIRE_HOURS` - JWT token expiration time in hours (default: 24)
 * `PASSWORD_SALT_ROUNDS` - Bcrypt salt rounds for password hashing (default: 12)
 
 **AI/ML Services:**
-* `LLM_API_URL` - Primary LLM service endpoint (e.g., OpenAI, Anthropic, or local)
+* `LLM_API_URL` - Primary LLM service endpoint
+  * Default: `https://generativelanguage.googleapis.com/v1beta/openai/`
 * `LLM_API_KEY` - API key for LLM services
-* `LLM_MODEL_SUMMARY` - Model for article summarization (e.g., gpt-3.5-turbo)
-* `LLM_MODEL_ANALYSIS` - Model for content analysis (e.g., gpt-4)
-* `LLM_MODEL_CLUSTERING` - Model for clustering tasks (e.g., gpt-3.5-turbo)
+* `GOOGLE_API_KEY` - Google AI API key (for Gemini models)
+
+**LLM Model Configuration:**
+* `LLM_MODEL_SUMMARY` - Fast model for article summarization
+  * Default: `gemini-2.0-flash-lite`
+* `LLM_MODEL_ANALYSIS` - Capable model for cluster detection and daily summaries
+  * Default: `gemini-2.5-pro`
+
+**Vector Embedding Services:**
 * `EMBEDDING_API_URL` - Vector embedding service endpoint
-* `EMBEDDING_MODEL` - Embedding model name (e.g., text-embedding-ada-002)
-* `EMBEDDING_DIMENSION` - Vector dimension size (default: 1536)
+  * Default: `https://api.openai.com/v1`
+* `EMBEDDING_MODEL` - Embedding model name
+  * Default: `gemini-embedding-001`
+* `EMBEDDING_DIMENSION` - Vector dimension size (default: 768)
+
+**Image Generation Services:**
+* `IMAGEGEN_MODEL` - AI image generation model
+  * Default: `imagen-3.0-generate-002`
+* `IMAGEGEN_ASPECT_RATIO` - Generated image aspect ratio (default: 16:9)
+* `IMAGEGEN_PERSON_GENERATE` - Person generation policy (default: dont_allow)
 
 **Optional AI Services:**
-* `TRANSCRIPT_API_URL` - Speech-to-text service endpoint
-* `TTS_API_URL` - Text-to-speech service endpoint
-* `TTS_API_KEY` - API key for audio services
+* `TRANSCRIPT_API_URL` - Speech-to-text service endpoint (optional)
+* `TTS_API_URL` - Text-to-speech service endpoint (optional)
+* `TTS_API_KEY` - API key for audio services (optional)
 
 **Application Settings:**
 * `LOG_LEVEL` - Application logging level (DEBUG, INFO, WARNING, ERROR)
+  * Default: `INFO`
+* `ENVIRONMENT` - Runtime environment (development, staging, production)
+  * Default: `development`
+* `DEBUG` - Enable debug mode (true/false)
+  * Default: `true`
+
+**Processing Configuration:**
 * `MAX_PROCESSING_ATTEMPTS` - Maximum retry attempts for failed AI processing (default: 3)
 * `DEFAULT_RSS_INTERVAL` - Default RSS fetch interval in minutes (default: 60)
 * `SCRAPER_CONCURRENT_FEEDS` - Number of concurrent RSS feeds to process (default: 5)
 * `POSTPROCESS_BATCH_SIZE` - Batch size for AI processing (default: 10)
 
-**Development Settings:**
-* `ENVIRONMENT` - Runtime environment (development, staging, production)
-* `DEBUG` - Enable debug mode (true/false)
-* `API_RATE_LIMIT` - API rate limiting (requests per minute)
+**API Configuration:**
+* `API_RATE_LIMIT` - API rate limiting (requests per minute, default: 100)
 * `CORS_ORIGINS` - Allowed CORS origins for frontend access
+  * Default: `http://localhost:3000,http://localhost:8000`
+
+**Development Settings:**
+* `NEXT_PUBLIC_API_URL` - Frontend API endpoint configuration
+  * Default: `http://localhost:8000`
 

@@ -7,21 +7,32 @@ import { Topic, RSSFeed, User } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import Modal from '@/components/Modal';
 import { useAuth } from '@/lib/auth-context';
+import { Check, X } from 'lucide-react';
 
 interface TopicFormData {
   name: string;
-  keywords: string;
+  keywords?: string; // Keep for internal state management but not used in API
   active: boolean;
 }
 
 interface RSSFeedFormData {
   url: string;
   title: string;
-  fetch_interval_minutes: number;
 }
 
 interface UserSettings {
   daily_summary_prompt: string;
+}
+
+interface SystemSettingItem {
+  setting_key: string;
+  setting_value: string;
+  setting_type: 'string' | 'integer' | 'float' | 'boolean';
+  setting_description?: string;
+  setting_category?: string;
+  min_value?: number;
+  max_value?: number;
+  options?: string[];
 }
 
 export default function SettingsPage() {
@@ -43,37 +54,44 @@ export default function SettingsPage() {
     keywords: '',
     active: true
   });
+  
+  // Feedback states
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [isSavingSystem, setIsSavingSystem] = useState(false);
+  const [feedbackModal, setFeedbackModal] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+  }>({ isOpen: false, type: 'success', title: '', message: '' });
   const [rssForm, setRSSForm] = useState<RSSFeedFormData>({
     url: '',
-    title: '',
-    fetch_interval_minutes: 60
+    title: ''
   });
   const [userSettings, setUserSettings] = useState<UserSettings>({
     daily_summary_prompt: ''
   });
-  
-  // User RSS feeds (for non-admin users)
-  const [userRssFeeds, setUserRssFeeds] = useState<RSSFeed[]>([]);
+  const [systemSettings, setSystemSettings] = useState<SystemSettingItem[]>([]);
 
   useEffect(() => {
     fetchData();
     fetchUserSettings();
-  }, []);
+    if (user?.is_admin) {
+      fetchSystemSettings();
+    }
+  }, [user?.is_admin]);
 
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [topicsData, adminRssData, userRssData] = await Promise.all([
+      const [topicsData, rssData] = await Promise.all([
         apiClient.get<{ topics: Topic[] }>(API_ENDPOINTS.TOPICS.LIST),
-        // Admin RSS feeds
-        user?.is_admin ? apiClient.get<RSSFeed[]>(API_ENDPOINTS.ADMIN.RSS_FEEDS).catch(() => []) : Promise.resolve([]),
         // User's subscribed RSS feeds
-        apiClient.get<RSSFeed[]>('/api/user/rss-feeds').catch(() => [])
+        apiClient.get<RSSFeed[]>(API_ENDPOINTS.RSS_FEEDS.LIST).catch(() => [])
       ]);
       
       setTopics(topicsData.topics || []);
-      setRssFeeds(Array.isArray(adminRssData) ? adminRssData : []);
-      setUserRssFeeds(Array.isArray(userRssData) ? userRssData : []);
+      setRssFeeds(Array.isArray(rssData) ? rssData : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings data');
     } finally {
@@ -83,7 +101,7 @@ export default function SettingsPage() {
 
   const fetchUserSettings = async () => {
     try {
-      const userData = await apiClient.get<User>('/api/user/me');
+      const userData = await apiClient.get<User>(API_ENDPOINTS.AUTH.USER_INFO);
       setUserSettings({
         daily_summary_prompt: userData.daily_summary_prompt || ''
       });
@@ -93,11 +111,178 @@ export default function SettingsPage() {
   };
 
   const updateUserSettings = async () => {
+    setIsSavingUser(true);
     try {
-      await apiClient.put('/api/user/settings', userSettings);
+      await apiClient.put(API_ENDPOINTS.AUTH.USER_SETTINGS, userSettings);
       setError(null);
+      setFeedbackModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Success!',
+        message: 'Your preferences have been saved successfully.'
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update user settings');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update user settings';
+      setError(errorMessage);
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Error',
+        message: errorMessage
+      });
+    } finally {
+      setIsSavingUser(false);
+    }
+  };
+
+  const fetchSystemSettings = async () => {
+    try {
+      const response = await apiClient.get<SystemSettingItem[]>(API_ENDPOINTS.ADMIN.SETTINGS);
+      setSystemSettings(response);
+    } catch (err) {
+      console.error('Failed to load system settings:', err);
+    }
+  };
+
+  const updateSystemSettings = async () => {
+    setIsSavingSystem(true);
+    try {
+      await apiClient.put(API_ENDPOINTS.ADMIN.SETTINGS, systemSettings);
+      setError(null);
+      setFeedbackModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Success!',
+        message: 'All system settings have been saved successfully.'
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update system settings';
+      setError(errorMessage);
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Error',
+        message: errorMessage
+      });
+    } finally {
+      setIsSavingSystem(false);
+    }
+  };
+
+  const updateSettingValue = (key: string, value: string) => {
+    setSystemSettings(prev => 
+      prev.map(setting => 
+        setting.setting_key === key 
+          ? { ...setting, setting_value: value }
+          : setting
+      )
+    );
+  };
+
+  const formatSettingLabel = (key: string) => {
+    return key
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  const groupSettingsByCategory = (settings: SystemSettingItem[]) => {
+    const grouped = settings.reduce((acc, setting) => {
+      const category = setting.setting_category || 'General';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(setting);
+      return acc;
+    }, {} as Record<string, SystemSettingItem[]>);
+    
+    return grouped;
+  };
+
+  const renderSettingInput = (setting: SystemSettingItem) => {
+    const baseClasses = "w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500";
+    
+    switch (setting.setting_type) {
+      case 'boolean':
+        return (
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id={setting.setting_key}
+              checked={setting.setting_value === 'true'}
+              onChange={(e) => updateSettingValue(setting.setting_key, e.target.checked.toString())}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <label htmlFor={setting.setting_key} className="ml-2 text-sm text-gray-700">
+              Enable {formatSettingLabel(setting.setting_key)}
+            </label>
+          </div>
+        );
+      
+      case 'integer':
+        return (
+          <input
+            type="number"
+            value={setting.setting_value}
+            onChange={(e) => updateSettingValue(setting.setting_key, e.target.value)}
+            min={setting.min_value}
+            max={setting.max_value}
+            className={baseClasses}
+            step="1"
+          />
+        );
+      
+      case 'float':
+        return (
+          <input
+            type="number"
+            value={setting.setting_value}
+            onChange={(e) => updateSettingValue(setting.setting_key, e.target.value)}
+            min={setting.min_value}
+            max={setting.max_value}
+            className={baseClasses}
+            step="0.1"
+          />
+        );
+      
+      case 'string':
+      default:
+        if (setting.options && setting.options.length > 0) {
+          return (
+            <select
+              value={setting.setting_value}
+              onChange={(e) => updateSettingValue(setting.setting_key, e.target.value)}
+              className={baseClasses}
+            >
+              {setting.options.map(option => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          );
+        }
+        
+        // Multi-line for prompts or long text
+        if (setting.setting_key.includes('prompt') || setting.setting_value.length > 100) {
+          return (
+            <textarea
+              value={setting.setting_value}
+              onChange={(e) => updateSettingValue(setting.setting_key, e.target.value)}
+              className={baseClasses}
+              rows={4}
+              placeholder={`Enter ${formatSettingLabel(setting.setting_key).toLowerCase()}`}
+            />
+          );
+        }
+        
+        return (
+          <input
+            type="text"
+            value={setting.setting_value}
+            onChange={(e) => updateSettingValue(setting.setting_key, e.target.value)}
+            className={baseClasses}
+            placeholder={`Enter ${formatSettingLabel(setting.setting_key).toLowerCase()}`}
+          />
+        );
     }
   };
 
@@ -107,7 +292,7 @@ export default function SettingsPage() {
     try {
       const data = {
         name: topicForm.name,
-        keywords: topicForm.keywords.split(',').map(k => k.trim()).filter(k => k),
+        keywords: [],
         active: topicForm.active
       };
 
@@ -140,7 +325,7 @@ export default function SettingsPage() {
       setEditingTopic(topic);
       setTopicForm({
         name: topic.name,
-        keywords: topic.keywords.join(', '),
+        keywords: '', // Don't populate keywords from existing topic
         active: topic.active
       });
     } else {
@@ -165,12 +350,11 @@ export default function SettingsPage() {
     e.preventDefault();
     try {
       const data = rssForm;
-      const endpoint = user?.is_admin ? API_ENDPOINTS.ADMIN.RSS_FEEDS : '/api/user/rss-feeds';
 
       if (editingRSSFeed) {
-        await apiClient.put(`${endpoint}/${editingRSSFeed.id}`, data);
+        await apiClient.put(API_ENDPOINTS.RSS_FEEDS.UPDATE(editingRSSFeed.uuid), data);
       } else {
-        await apiClient.post(endpoint, data);
+        await apiClient.post(API_ENDPOINTS.RSS_FEEDS.CREATE, data);
       }
 
       await fetchData();
@@ -180,11 +364,10 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDeleteRSSFeed = async (feedId: number, isUserFeed = false) => {
+  const handleDeleteRSSFeed = async (feed: RSSFeed) => {
     if (confirm('Are you sure you want to delete this RSS feed?')) {
       try {
-        const endpoint = isUserFeed || !user?.is_admin ? '/api/user/rss-feeds' : API_ENDPOINTS.ADMIN.RSS_FEEDS;
-        await apiClient.delete(`${endpoint}/${feedId}`);
+        await apiClient.delete(API_ENDPOINTS.RSS_FEEDS.DELETE(feed.uuid));
         await fetchData();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to delete RSS feed');
@@ -197,15 +380,13 @@ export default function SettingsPage() {
       setEditingRSSFeed(feed);
       setRSSForm({
         url: feed.url,
-        title: feed.title || '',
-        fetch_interval_minutes: feed.fetch_interval_minutes
+        title: feed.title || ''
       });
     } else {
       setEditingRSSFeed(null);
       setRSSForm({
         url: '',
-        title: '',
-        fetch_interval_minutes: 60
+        title: ''
       });
     }
     setIsRSSModalOpen(true);
@@ -214,7 +395,7 @@ export default function SettingsPage() {
   const closeRSSModal = () => {
     setIsRSSModalOpen(false);
     setEditingRSSFeed(null);
-    setRSSForm({ url: '', title: '', fetch_interval_minutes: 60 });
+    setRSSForm({ url: '', title: '' });
   };
 
   if (isLoading) {
@@ -225,8 +406,15 @@ export default function SettingsPage() {
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Page Header */}
       <div className="border-b border-gray-200 pb-4">
-        <h1 className="text-3xl font-semibold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Manage your topics and preferences</p>
+        <h1 className="text-3xl font-semibold text-gray-900">
+          {user?.is_admin ? 'System Settings' : 'Settings'}
+        </h1>
+        <p className="text-gray-600 mt-1">
+          {user?.is_admin 
+            ? 'Manage AI processing prompts and system configuration' 
+            : 'Manage your topics and preferences'
+          }
+        </p>
       </div>
 
       {error && (
@@ -241,198 +429,138 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* User Settings */}
-      <div className="border border-gray-200 rounded-lg shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">User Preferences</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Customize your news experience and daily summaries
-          </p>
-        </div>
-        
-        <div className="p-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Daily Summary Prompt
-              </label>
-              <textarea
-                value={userSettings.daily_summary_prompt}
-                onChange={(e) => setUserSettings({ ...userSettings, daily_summary_prompt: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="Enter your custom prompt for daily news summaries (optional)"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                This prompt will be used to customize your daily news summaries. Leave empty to use the default prompt.
-              </p>
-            </div>
-            
-            <div className="flex justify-end">
-              <button
-                onClick={updateUserSettings}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                Save Preferences
-              </button>
-            </div>
+      {/* User Settings - Hidden for Admin Users */}
+      {!user?.is_admin && (
+        <div className="border border-gray-200 rounded-lg shadow-sm">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">User Preferences</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Customize your news experience and daily summaries
+            </p>
           </div>
-        </div>
-      </div>
-
-      {/* Topics Management */}
-      <div className="border border-gray-200 rounded-lg shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Topics</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Manage your news topics and keywords
-              </p>
-            </div>
-            <button
-              onClick={() => openTopicModal()}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Add Topic
-            </button>
-          </div>
-        </div>
-        
-        <div className="divide-y divide-gray-200">
-          {topics.length > 0 ? (
-            topics.map((topic) => (
-              <div key={topic.id} className="p-4 hover:bg-gray-50">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-gray-900">{topic.name}</h3>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        topic.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {topic.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {topic.keywords.map((keyword, index) => (
-                        <span key={index} className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                          {keyword}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => openTopicModal(topic)}
-                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTopic(topic.id)}
-                      className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
+          
+          <div className="p-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Daily Summary Prompt
+                </label>
+                <textarea
+                  value={userSettings.daily_summary_prompt}
+                  onChange={(e) => setUserSettings({ ...userSettings, daily_summary_prompt: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Enter your custom prompt for daily news summaries (optional)"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This prompt will be used to customize your daily news summaries. Leave empty to use the default prompt.
+                </p>
               </div>
-            ))
-          ) : (
-            <div className="p-8 text-center text-gray-500">
-              <p>No topics configured yet.</p>
-              <button
-                onClick={() => openTopicModal()}
-                className="mt-2 text-blue-600 hover:text-blue-800 underline"
-              >
-                Add your first topic
-              </button>
+              
+              <div className="flex justify-end">
+                <button
+                  onClick={updateUserSettings}
+                  disabled={isSavingUser}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSavingUser ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Preferences'
+                  )}
+                </button>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* User RSS Feeds Management */}
-      <div className="border border-gray-200 rounded-lg shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">My RSS Sources</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Manage your personal RSS feed subscriptions
-              </p>
-            </div>
-            <button
-              onClick={() => openRSSModal()}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-            >
-              Add RSS Feed
-            </button>
           </div>
         </div>
-        
-        <div className="divide-y divide-gray-200">
-          {userRssFeeds.length > 0 ? (
-            userRssFeeds.map((feed) => (
-              <div key={feed.id} className="p-4 hover:bg-gray-50">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{feed.title || 'Untitled Feed'}</h3>
-                    <p className="text-sm text-gray-600 mt-1">{feed.url}</p>
-                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                      <span>Interval: {feed.fetch_interval_minutes}min</span>
-                      <span className={`px-2 py-1 rounded-full ${
-                        feed.last_fetch_status === 'success' ? 'bg-green-100 text-green-800' :
-                        feed.last_fetch_status === 'failed' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {feed.last_fetch_status}
-                      </span>
-                      {feed.last_fetch_at && (
-                        <span>Last fetch: {new Date(feed.last_fetch_at).toLocaleDateString()}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => openRSSModal(feed)}
-                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteRSSFeed(feed.id, true)}
-                      className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="p-8 text-center text-gray-500">
-              <p>No RSS feeds configured yet.</p>
-              <button
-                onClick={() => openRSSModal()}
-                className="mt-2 text-green-600 hover:text-green-800 underline"
-              >
-                Add your first RSS feed
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
-      {/* System RSS Feeds Management (Admin Only) */}
-      {user?.is_admin && (
+      {/* Topics Management - Hidden for Admin Users */}
+      {!user?.is_admin && (
         <div className="border border-gray-200 rounded-lg shadow-sm">
           <div className="p-6 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">System RSS Sources</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Topics</h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  Manage global RSS feed sources (Admin only)
+                  Manage your news topics and keywords
+                </p>
+              </div>
+              <button
+                onClick={() => openTopicModal()}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Add Topic
+              </button>
+            </div>
+          </div>
+          
+          <div className="divide-y divide-gray-200">
+            {topics.length > 0 ? (
+              topics.map((topic) => (
+                <div key={topic.id} className="p-4 hover:bg-gray-50">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-gray-900">{topic.name}</h3>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          topic.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {topic.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {topic.keywords.map((keyword, index) => (
+                          <span key={index} className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => openTopicModal(topic)}
+                        className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTopic(topic.id)}
+                        className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-500">
+                <p>No topics configured yet.</p>
+                <button
+                  onClick={() => openTopicModal()}
+                  className="mt-2 text-blue-600 hover:text-blue-800 underline"
+                >
+                  Add your first topic
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* User RSS Feeds Management - Hidden for Admin Users */}
+      {!user?.is_admin && (
+        <div className="border border-gray-200 rounded-lg shadow-sm">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">My RSS Sources</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Manage your personal RSS feed subscriptions
                 </p>
               </div>
               <button
@@ -474,7 +602,7 @@ export default function SettingsPage() {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDeleteRSSFeed(feed.id)}
+                        onClick={() => handleDeleteRSSFeed(feed)}
                         className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
                       >
                         Delete
@@ -494,6 +622,77 @@ export default function SettingsPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+
+      {/* System Settings (Admin Only) */}
+      {user?.is_admin && (
+        <div className="border border-gray-200 rounded-lg shadow-sm">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">System Settings</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Configure system-wide parameters and AI processing settings (Admin only)
+            </p>
+          </div>
+          
+          <div className="p-6 space-y-8">
+            {systemSettings.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">Loading system settings...</p>
+              </div>
+            ) : (
+              Object.entries(groupSettingsByCategory(systemSettings)).map(([category, settings]) => (
+                <div key={category} className="space-y-6">
+                  <h3 className="text-md font-semibold text-gray-800 border-b border-gray-200 pb-2">
+                    {category}
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {settings.map((setting) => (
+                      <div key={setting.setting_key} className={
+                        setting.setting_key.includes('prompt') || setting.setting_value.length > 100 
+                          ? 'md:col-span-2' 
+                          : ''
+                      }>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {formatSettingLabel(setting.setting_key)}
+                        </label>
+                        {renderSettingInput(setting)}
+                        {setting.setting_description && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {setting.setting_description}
+                          </p>
+                        )}
+                        {setting.min_value !== undefined && setting.max_value !== undefined && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Range: {setting.min_value} - {setting.max_value}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+            
+            <div className="flex justify-end pt-4 border-t border-gray-200">
+              <button
+                onClick={updateSystemSettings}
+                disabled={isSavingSystem}
+                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isSavingSystem ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Saving...
+                  </>
+                ) : (
+                  'Save All Settings'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -518,23 +717,7 @@ export default function SettingsPage() {
               placeholder="e.g., Technology, Politics, Sports"
             />
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Keywords (comma-separated)
-            </label>
-            <textarea
-              value={topicForm.keywords}
-              onChange={(e) => setTopicForm({ ...topicForm, keywords: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              rows={3}
-              placeholder="e.g., AI, artificial intelligence, machine learning, automation"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Separate keywords with commas. These help categorize articles automatically.
-            </p>
-          </div>
-          
+
           <div className="flex items-center">
             <input
               type="checkbox"
@@ -566,88 +749,94 @@ export default function SettingsPage() {
         </form>
       </Modal>
 
-      {/* RSS Feed Modal (Admin only) */}
-      {user?.is_admin && (
-        <Modal
-          isOpen={isRSSModalOpen}
-          onClose={closeRSSModal}
-          title={editingRSSFeed ? 'Edit RSS Feed' : 'Add New RSS Feed'}
-        >
-          <form onSubmit={handleRSSSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                RSS Feed URL
-              </label>
-              <input
-                type="url"
-                value={rssForm.url}
-                onChange={(e) => setRSSForm({ ...rssForm, url: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                required
-                placeholder="https://example.com/rss.xml"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Enter a valid RSS or Atom feed URL
-              </p>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Feed Title (optional)
-              </label>
-              <input
-                type="text"
-                value={rssForm.title}
-                onChange={(e) => setRSSForm({ ...rssForm, title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                placeholder="Custom name for this feed"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                If left empty, the feed title will be automatically detected
-              </p>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fetch Interval (minutes)
-              </label>
-              <select
-                value={rssForm.fetch_interval_minutes}
-                onChange={(e) => setRSSForm({ ...rssForm, fetch_interval_minutes: parseInt(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                <option value={15}>15 minutes</option>
-                <option value={30}>30 minutes</option>
-                <option value={60}>1 hour</option>
-                <option value={120}>2 hours</option>
-                <option value={240}>4 hours</option>
-                <option value={480}>8 hours</option>
-                <option value={720}>12 hours</option>
-                <option value={1440}>24 hours</option>
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                How often to check this feed for new articles
-              </p>
-            </div>
-            
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={closeRSSModal}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-              >
-                {editingRSSFeed ? 'Update' : 'Create'} Feed
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+      {/* RSS Feed Modal */}
+      <Modal
+        isOpen={isRSSModalOpen}
+        onClose={closeRSSModal}
+        title={editingRSSFeed ? 'Edit RSS Feed' : 'Add New RSS Feed'}
+      >
+        <form onSubmit={handleRSSSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              RSS Feed URL
+            </label>
+            <input
+              type="url"
+              value={rssForm.url}
+              onChange={(e) => setRSSForm({ ...rssForm, url: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              required
+              placeholder="https://example.com/rss.xml"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Enter a valid RSS or Atom feed URL
+            </p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Feed Title (optional)
+            </label>
+            <input
+              type="text"
+              value={rssForm.title}
+              onChange={(e) => setRSSForm({ ...rssForm, title: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              placeholder="Custom name for this feed"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              If left empty, the feed title will be automatically detected
+            </p>
+          </div>
+          
+          
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={closeRSSModal}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+            >
+              {editingRSSFeed ? 'Update' : 'Create'} Feed
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Feedback Modal */}
+      <Modal
+        isOpen={feedbackModal.isOpen}
+        onClose={() => setFeedbackModal({ ...feedbackModal, isOpen: false })}
+        title={feedbackModal.title}
+      >
+        <div className="text-center py-4">
+          <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full mb-4 ${
+            feedbackModal.type === 'success' ? 'bg-green-100' : 'bg-red-100'
+          }`}>
+            {feedbackModal.type === 'success' ? (
+              <Check className={`h-6 w-6 text-green-600`} />
+            ) : (
+              <X className={`h-6 w-6 text-red-600`} />
+            )}
+          </div>
+          <p className="text-gray-700 mb-6">{feedbackModal.message}</p>
+          <button
+            onClick={() => setFeedbackModal({ ...feedbackModal, isOpen: false })}
+            className={`px-4 py-2 rounded text-white transition-colors ${
+              feedbackModal.type === 'success' 
+                ? 'bg-green-600 hover:bg-green-700' 
+                : 'bg-red-600 hover:bg-red-700'
+            }`}
+          >
+            OK
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

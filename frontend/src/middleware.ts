@@ -3,7 +3,6 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('newsfrontier_auth_token')?.value;
-  console.log(token);
   const { pathname } = request.nextUrl;
 
   // Define protected routes

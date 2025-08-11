@@ -30,8 +30,16 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-md p-8 border border-gray-300 rounded-lg shadow-lg">
+    <div 
+      className="min-h-screen flex items-center justify-center px-4 fixed inset-0"
+      style={{
+        backgroundImage: 'url(/back.avif)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      <div className="w-full max-w-md p-8 bg-white/95 backdrop-blur-sm border border-white/20 rounded-lg shadow-2xl">
         <h1 className="text-2xl font-semibold text-center mb-6 text-gray-900">Login to NewsFrontier</h1>
         
         {error && (
@@ -82,7 +90,7 @@ export default function LoginPage() {
 
         <div className="mt-6 pt-4 border-t border-gray-200">
           <p className="text-center text-sm text-gray-600">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/register" className="text-blue-600 hover:text-blue-800 font-medium">
               Sign up
             </Link>

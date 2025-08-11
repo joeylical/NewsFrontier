@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { X } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -29,9 +30,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
             onClick={onClose}
             aria-label="Close modal"
           >
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
         <div className="p-6 flex-1 overflow-y-auto">

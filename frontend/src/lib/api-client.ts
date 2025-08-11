@@ -1,5 +1,5 @@
 import { API_BASE_URL, STORAGE_KEYS } from './constants';
-import { ApiResponse, AuthResponse, User } from './types';
+// Types are used in other parts of the codebase
 
 class ApiClient {
   private baseUrl: string;
@@ -49,7 +49,7 @@ class ApiClient {
     return response.text() as unknown as T;
   }
 
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+  async get<T>(endpoint: string, params?: Record<string, string | number | boolean>): Promise<T> {
     const url = new URL(`${this.baseUrl}${endpoint}`);
     
     if (params) {
@@ -68,7 +68,7 @@ class ApiClient {
     return this.handleResponse<T>(response);
   }
 
-  async post<T>(endpoint: string, data?: any): Promise<T> {
+  async post<T>(endpoint: string, data?: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
       headers: this.getHeaders(),
@@ -78,7 +78,7 @@ class ApiClient {
     return this.handleResponse<T>(response);
   }
 
-  async put<T>(endpoint: string, data?: any): Promise<T> {
+  async put<T>(endpoint: string, data?: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'PUT',
       headers: this.getHeaders(),

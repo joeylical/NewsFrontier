@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  database:
+    image: pgvector/pgvector:pg17
+    container_name: newsfrontier-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-newsfrontier_db}
+      POSTGRES_USER: ${DB_USER:-newsfrontier}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
+      TZ: America/Edmonton
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-newsfrontier} -d ${DB_NAME:-newsfrontier_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  backend:
+    build: 
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: newsfrontier-backend
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-newsfrontier}:${DB_PASSWORD:-dev_password}@database:5432/${DB_NAME:-newsfrontier_db}
+      POSTPROCESS_API_URL: http://postprocess:8001
+      JWT_SECRET: ${JWT_SECRET:-your-dev-jwt-secret}
+      LLM_API_URL: ${LLM_API_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
+      LLM_API_KEY: ${LLM_API_KEY:-your-api-key-here}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-your-api-key-here}
+      LLM_MODEL_SUMMARY: ${LLM_MODEL_SUMMARY:-gemini-2.0-flash-lite}
+      LLM_MODEL_ANALYSIS: ${LLM_MODEL_ANALYSIS:-gemini-2.5-pro}
+      EMBEDDING_API_URL: ${EMBEDDING_API_URL:-https://api.openai.com/v1}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
+      S3API_REGION: ${S3API_REGION:-}
+      S3API_ENDPOINT: ${S3API_ENDPOINT:-}
+      S3API_BUCKET: ${S3API_BUCKET:-}
+      S3API_KEY_ID: ${S3API_KEY_ID:-}
+      S3API_KEY: ${S3API_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-true}
+      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-24}
+      PASSWORD_SALT_ROUNDS: ${PASSWORD_SALT_ROUNDS:-12}
+      TZ: America/Edmonton
+    ports:
+      - "8000:8000"
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./backend/server.log:/app/server.log
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: newsfrontier-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      TZ: America/Edmonton
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  scraper:
+    build:
+      context: .
+      dockerfile: scraper/Dockerfile
+    container_name: newsfrontier-scraper
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-newsfrontier}:${DB_PASSWORD:-dev_password}@database:5432/${DB_NAME:-newsfrontier_db}
+      BACKEND_URL: http://backend:8000
+      DEFAULT_RSS_INTERVAL: ${DEFAULT_RSS_INTERVAL:-60}
+      SCRAPER_CONCURRENT_FEEDS: ${SCRAPER_CONCURRENT_FEEDS:-5}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TZ: America/Edmonton
+    depends_on:
+      database:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    volumes:
+      - ./scraper/scraper.log:/app/scraper.log
+    restart: unless-stopped
+
+  postprocess:
+    build:
+      context: .
+      dockerfile: postprocess/Dockerfile
+    container_name: newsfrontier-postprocess
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-newsfrontier}:${DB_PASSWORD:-dev_password}@database:5432/${DB_NAME:-newsfrontier_db}
+      BACKEND_URL: http://backend:8000
+      LLM_API_URL: ${LLM_API_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
+      LLM_API_KEY: ${LLM_API_KEY:-your-api-key-here}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-your-api-key-here}
+      LLM_MODEL_SUMMARY: ${LLM_MODEL_SUMMARY:-gemini-2.0-flash-lite}
+      LLM_MODEL_ANALYSIS: ${LLM_MODEL_ANALYSIS:-gemini-2.5-pro}
+      EMBEDDING_API_URL: ${EMBEDDING_API_URL:-https://api.openai.com/v1}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
+      POSTPROCESS_BATCH_SIZE: ${POSTPROCESS_BATCH_SIZE:-10}
+      MAX_PROCESSING_ATTEMPTS: ${MAX_PROCESSING_ATTEMPTS:-3}
+      S3API_REGION: ${S3API_REGION:-}
+      S3API_ENDPOINT: ${S3API_ENDPOINT:-}
+      S3API_BUCKET: ${S3API_BUCKET:-}
+      S3API_KEY_ID: ${S3API_KEY_ID:-}
+      S3API_KEY: ${S3API_KEY:-}
+      IMAGEGEN_MODEL: ${IMAGEGEN_MODEL:-imagen-3.0-generate-002}
+      IMAGEGEN_ASPECT_RATIO: ${IMAGEGEN_ASPECT_RATIO:-16:9}
+      IMAGEGEN_PERSON_GENERATE: ${IMAGEGEN_PERSON_GENERATE:-dont_allow}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TZ: America/Edmonton
+    ports:
+      - "8001:8001"
+    depends_on:
+      database:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    volumes:
+      - ./postprocess/postprocess.log:/app/postprocess.log
+    restart: unless-stopped
+
+networks:
+  default:
+    name: newsfrontier-network
+
+volumes:
+  postgres_data:
+    driver: local

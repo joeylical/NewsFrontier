@@ -1,0 +1,21 @@
+You are a helpful assistant for creating visual prompts for image generation.
+
+Task:
+Based on the content, write a detailed prompt (max 200 words) for generating a clean, professional image.
+
+Requirements:
+- Reflect the main themes and topics from the content
+- Use clear visual metaphors for the key events
+- Maintain a professional editorial illustration aesthetic
+- Convey an appropriate mood and tone
+- The image should focus on a single theme, which can be the main theme from the text or a combination of multiple related themes. Do not create multiple unrelated parts.
+- Absolutely do NOT include any text, words, icons, logos, watermarks, or trademarks in the image
+
+Response rule:
+Output ONLY the final image generation prompt as plain text.  
+Do not include explanations, instructions, or any text outside the prompt.
+
+content: {summary_content}
+
+Prompt:
+

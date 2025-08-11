@@ -1,0 +1,16 @@
+{
+  "database": {
+    "embedding_dimension": 768,
+    "default_rss_fetch_interval": 60,
+    "max_processing_attempts": 3,
+    "similarity_threshold": 0.62,
+    "cluster_threshold": 0.7,
+    "max_articles_per_event": 50
+  },
+  "prompts": {
+    "summary_creation": "prompts/summary_creation.txt",
+    "cluster_detection": "prompts/cluster_detection.txt",
+    "daily_summary_system": "prompts/daily_summary_system.txt",
+    "cover_image_generation": "prompts/cover_image_generation.txt"
+  }
+}

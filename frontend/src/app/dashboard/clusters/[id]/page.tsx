@@ -7,9 +7,10 @@ import { apiClient } from '@/lib/api-client';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { Article } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import ListView from '@/components/ListView';
-import ListItem from '@/components/ListItem';
-import { formatDate } from '@/lib/utils';
+// import ListView from '@/components/ListView';
+// import ListItem from '@/components/ListItem';
+import { formatDate, stripHtmlTags } from '@/lib/utils';
+import { ChevronLeft, FileStack, Clock, Calendar, User, Tag, Users } from 'lucide-react';
 
 interface ClusterDetail {
   cluster: {
@@ -91,56 +92,34 @@ export default function ClusterDetailPage() {
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
       <div className="border-b border-gray-200 pb-6 mb-6">
-        <div className="flex items-start justify-between">
+        <div>
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.back()}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title="Go back"
             >
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
             </button>
             <div>
               <h1 className="text-3xl font-semibold text-gray-900 mb-2">{cluster.title}</h1>
               <div className="flex items-center gap-6 text-sm text-gray-600">
                 <span className="flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                  </svg>
+                  <FileStack className="w-4 h-4" />
                   {cluster.article_count} articles
                 </span>
                 <span className="flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                  </svg>
+                  <Clock className="w-4 h-4" />
                   Updated {formatDate(cluster.updated_at)}
                 </span>
                 <span className="flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                  </svg>
+                  <Calendar className="w-4 h-4" />
                   Created {formatDate(cluster.created_at)}
                 </span>
               </div>
             </div>
           </div>
           
-          <div className="flex gap-3">
-            <Link
-              href="/dashboard/topics"
-              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Back to Topics
-            </Link>
-            <Link
-              href="/dashboard"
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Dashboard
-            </Link>
-          </div>
         </div>
       </div>
 
@@ -182,25 +161,19 @@ export default function ClusterDetailPage() {
                       <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
                         {article.author && (
                           <span className="flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                            </svg>
+                            <User className="w-4 h-4" />
                             {article.author}
                           </span>
                         )}
                         {article.published_at && (
                           <span className="flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                            </svg>
+                            <Clock className="w-4 h-4" />
                             {formatDate(article.published_at)}
                           </span>
                         )}
                         {article.category && (
                           <span className="flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                            </svg>
+                            <Tag className="w-4 h-4" />
                             {article.category}
                           </span>
                         )}
@@ -218,9 +191,9 @@ export default function ClusterDetailPage() {
                       {article.content && (
                         <div className="text-gray-700 text-sm leading-relaxed">
                           <p className="line-clamp-3">
-                            {article.content.length > 300 
-                              ? `${article.content.substring(0, 300)}...`
-                              : article.content
+                            {stripHtmlTags(article.content).length > 300 
+                              ? `${stripHtmlTags(article.content).substring(0, 300)}...`
+                              : stripHtmlTags(article.content)
                             }
                           </p>
                         </div>
@@ -254,93 +227,19 @@ export default function ClusterDetailPage() {
           <div className="text-center py-12">
             <div className="max-w-md mx-auto">
               <div className="mb-4">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 48 48">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M34 40h10v-4a6 6 0 00-10.712-3.714M34 40H14m20 0v-4a9.971 9.971 0 00-.712-3.714M14 40H4v-4a6 6 0 0110.713-3.714M14 40v-4c0-1.313.253-2.566.713-3.714m0 0A9.971 9.971 0 0118 32a9.971 9.971 0 013.287.714M14 36.286c0-2.442.45-4.778 1.287-6.857C16.85 27.002 19.294 26 22 26s5.15 1.002 6.713 3.429c.837 2.08 1.287 4.415 1.287 6.857" />
-                </svg>
+                <Users className="mx-auto h-12 w-12 text-gray-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 No Articles Found
               </h3>
               <p className="text-gray-600 mb-6">
-                This cluster doesn't contain any articles yet. This might happen if the articles are still being processed or if they were removed.
+                This cluster doesn&apos;t contain any articles yet. This might happen if the articles are still being processed or if they were removed.
               </p>
-              <Link
-                href="/dashboard/topics"
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                Back to Topics
-              </Link>
             </div>
           </div>
         )}
       </div>
 
-      {/* Cluster Statistics */}
-      {cluster.articles.length > 0 && (
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Total Articles</p>
-                <p className="text-lg font-semibold text-gray-900">{cluster.articles.length}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Unique Authors</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {new Set(cluster.articles.filter(a => a.author).map(a => a.author)).size}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <svg className="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Categories</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {new Set(cluster.articles.filter(a => a.category).map(a => a.category)).size}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <svg className="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Processed</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {cluster.articles.filter(a => a.processing_status === 'completed').length}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

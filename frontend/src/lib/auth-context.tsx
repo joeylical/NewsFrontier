@@ -119,18 +119,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    // Call logout API in background (don't await to avoid delays)
     try {
       if (token) {
-        await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+        apiClient.post(API_ENDPOINTS.AUTH.LOGOUT).catch((error) => {
+          console.error('Logout API call failed:', error);
+        });
+        setUser(null);
+        setToken(null);
+        apiClient.setAuthToken(null);
+        deleteCookie(STORAGE_KEYS.AUTH_TOKEN);
+        deleteCookie(STORAGE_KEYS.USER_DATA);
       }
     } catch (error) {
       console.error('Logout API call failed:', error);
-    } finally {
-      setUser(null);
-      setToken(null);
-      apiClient.setAuthToken(null);
-      deleteCookie(STORAGE_KEYS.AUTH_TOKEN);
-      deleteCookie(STORAGE_KEYS.USER_DATA);
     }
   };
 

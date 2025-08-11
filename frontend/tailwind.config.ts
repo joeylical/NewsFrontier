@@ -15,6 +15,7 @@ const config: Config = {
     },
   },
   plugins: [require("daisyui")],
+  // @ts-ignore
   daisyui: {
     themes: ["light", "dark"],
     darkTheme: "dark",

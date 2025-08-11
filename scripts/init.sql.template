@@ -1,0 +1,225 @@
+-- NewsFrontier Database Initialization Script Template
+-- This file uses {{EMBEDDING_DIMENSION}} placeholder that gets replaced with actual dimension
+
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Enable UUID generation
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Create users table
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE,
+    credits INTEGER DEFAULT 0 CHECK (credits >= 0),
+    credits_accrual INTEGER DEFAULT 0 CHECK (credits_accrual >= 0),
+    daily_summary_prompt TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create RSS feeds table
+CREATE TABLE IF NOT EXISTS rss_feeds (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    url TEXT NOT NULL UNIQUE,
+    title VARCHAR(255),
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    last_fetch_at TIMESTAMP,
+    last_fetch_status VARCHAR(50) DEFAULT 'pending' CHECK (last_fetch_status IN ('pending', 'success', 'failed', 'timeout')),
+    fetch_interval_minutes INTEGER DEFAULT 60
+);
+
+-- Create RSS subscriptions table
+CREATE TABLE IF NOT EXISTS rss_subscriptions (
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    rss_uuid UUID REFERENCES rss_feeds(uuid) ON DELETE CASCADE,
+    alias VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (user_id, rss_uuid)
+);
+
+-- Create RSS fetch records table
+CREATE TABLE IF NOT EXISTS rss_fetch_records (
+    id SERIAL PRIMARY KEY,
+    rss_feed_id INTEGER REFERENCES rss_feeds(id) ON DELETE CASCADE,
+    raw_content TEXT NOT NULL,
+    content_hash VARCHAR(64) NOT NULL,
+    first_fetch_timestamp TIMESTAMP DEFAULT NOW(),
+    last_fetch_timestamp TIMESTAMP DEFAULT NOW(),
+    http_status INTEGER,
+    content_encoding VARCHAR(50)
+);
+
+-- Create RSS items metadata table
+CREATE TABLE IF NOT EXISTS rss_items_metadata (
+    id SERIAL PRIMARY KEY,
+    rss_fetch_record_id INTEGER REFERENCES rss_fetch_records(id) ON DELETE CASCADE,
+    guid TEXT,
+    title TEXT NOT NULL,
+    content TEXT,
+    url TEXT,
+    published_at TIMESTAMP,
+    author VARCHAR(255),
+    category VARCHAR(255),
+    processing_status VARCHAR(20) DEFAULT 'pending' CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed')),
+    processing_started_at TIMESTAMP,
+    processing_completed_at TIMESTAMP,
+    processing_attempts INTEGER DEFAULT 0 CHECK (processing_attempts >= 0 AND processing_attempts <= 10),
+    last_error_message TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT unique_rss_item_guid_per_feed UNIQUE (rss_fetch_record_id, guid)
+);
+
+-- Create RSS item derivatives table with dynamic vector dimension
+CREATE TABLE IF NOT EXISTS rss_item_derivatives (
+    id SERIAL PRIMARY KEY,
+    rss_item_id INTEGER UNIQUE REFERENCES rss_items_metadata(id) ON DELETE CASCADE,
+    summary TEXT,
+    title_embedding VECTOR({{EMBEDDING_DIMENSION}}),
+    summary_embedding VECTOR({{EMBEDDING_DIMENSION}}),
+    processing_status VARCHAR(20) DEFAULT 'pending' CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed')),
+    summary_generated_at TIMESTAMP,
+    embeddings_generated_at TIMESTAMP,
+    processing_attempts INTEGER DEFAULT 0,
+    last_error_message TEXT,
+    llm_model_version VARCHAR(100),
+    embedding_model_version VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create topics table with dynamic vector dimension
+CREATE TABLE IF NOT EXISTS topics (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    topic_vector VECTOR({{EMBEDDING_DIMENSION}}),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT unique_user_topic_name UNIQUE (user_id, name)
+);
+
+-- Create article-topics relationship table
+CREATE TABLE IF NOT EXISTS article_topics (
+    rss_item_id INTEGER REFERENCES rss_items_metadata(id) ON DELETE CASCADE,
+    topic_id INTEGER REFERENCES topics(id) ON DELETE CASCADE,
+    relevance_score FLOAT CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0),
+    created_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (rss_item_id, topic_id)
+);
+
+-- Create events table with dynamic vector dimension
+CREATE TABLE IF NOT EXISTS events (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    topic_id INTEGER REFERENCES topics(id) ON DELETE CASCADE,
+    title VARCHAR(500) NOT NULL,
+    description TEXT,
+    event_description TEXT,
+    event_embedding VECTOR({{EMBEDDING_DIMENSION}}),
+    last_updated_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create article-events relationship table
+CREATE TABLE IF NOT EXISTS article_events (
+    rss_item_id INTEGER REFERENCES rss_items_metadata(id) ON DELETE CASCADE,
+    event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+    relevance_score FLOAT CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0),
+    created_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (rss_item_id, event_id)
+);
+
+-- Create user-topics relationship table
+CREATE TABLE IF NOT EXISTS user_topics (
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    topic_id INTEGER REFERENCES topics(id) ON DELETE CASCADE,
+    priority INTEGER DEFAULT 1 CHECK (priority >= 1 AND priority <= 10),
+    notification_enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (user_id, topic_id)
+);
+
+-- Create user summaries table
+CREATE TABLE IF NOT EXISTS user_summaries (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    summary TEXT,
+    cover_arguments TEXT,
+    cover_prompt TEXT,
+    cover_seed INTEGER,
+    cover_s3key TEXT,
+    date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT unique_user_summary_per_date UNIQUE (user_id, date)
+);
+
+-- Create system settings table
+CREATE TABLE IF NOT EXISTS system_settings (
+    id SERIAL PRIMARY KEY,
+    setting_key VARCHAR(100) UNIQUE NOT NULL,
+    setting_value TEXT,
+    setting_type VARCHAR(20) DEFAULT 'string' CHECK (setting_type IN ('string', 'integer', 'boolean', 'json', 'float')),
+    description TEXT,
+    is_public BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT NOW(),
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create indexes for performance optimization
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_rss_feeds_uuid ON rss_feeds(uuid);
+CREATE INDEX IF NOT EXISTS idx_rss_feeds_url ON rss_feeds(url);
+CREATE INDEX IF NOT EXISTS idx_rss_items_processing_status ON rss_items_metadata(processing_status);
+CREATE INDEX IF NOT EXISTS idx_rss_items_published_at ON rss_items_metadata(published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rss_derivatives_processing_status ON rss_item_derivatives(processing_status);
+CREATE INDEX IF NOT EXISTS idx_topics_user_id ON topics(user_id);
+CREATE INDEX IF NOT EXISTS idx_events_user_id ON events(user_id);
+CREATE INDEX IF NOT EXISTS idx_events_topic_id ON events(topic_id);
+CREATE INDEX IF NOT EXISTS idx_user_summaries_user_date ON user_summaries(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(setting_key);
+
+-- Create vector indexes for similarity search (using IVFFlat with appropriate lists parameter)
+-- Note: Vector indexes will be created after initial data is inserted to optimize performance
+-- These can be created manually later: 
+-- CREATE INDEX idx_title_embedding ON rss_item_derivatives USING ivfflat (title_embedding vector_cosine_ops) WITH (lists = 100);
+-- CREATE INDEX idx_summary_embedding ON rss_item_derivatives USING ivfflat (summary_embedding vector_cosine_ops) WITH (lists = 100);
+-- CREATE INDEX idx_topic_vector ON topics USING ivfflat (topic_vector vector_cosine_ops) WITH (lists = 100);
+
+-- Insert default system settings
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description, is_public) VALUES
+    ('default_rss_fetch_interval', '{{DEFAULT_RSS_FETCH_INTERVAL}}', 'integer', 'Default RSS polling interval in minutes', true),
+    ('max_processing_attempts', '{{MAX_PROCESSING_ATTEMPTS}}', 'integer', 'Maximum retry attempts for failed processing', true),
+    ('embedding_dimension', '{{EMBEDDING_DIMENSION}}', 'integer', 'Vector dimension size', true),
+    ('similarity_threshold', '{{SIMILARITY_THRESHOLD}}', 'float', 'Minimum similarity score for clustering (0.0-1.0)', true),
+    ('cluster_threshold', '{{CLUSTER_THRESHOLD}}', 'float', 'Minimum embedding similarity score for direct event assignment (0.0-1.0)', true),
+    ('max_articles_per_event', '{{MAX_ARTICLES_PER_EVENT}}', 'integer', 'Maximum articles to associate with a single event', true),
+    ('prompt_summary_creation', '{{PROMPT_SUMMARY_CREATION}}', 'string', 'Prompt for creating article summaries', false),
+    ('prompt_cluster_detection', '{{PROMPT_CLUSTER_DETECTION}}', 'string', 'Prompt for detecting and clustering news events', false),
+    -- Daily Summary Prompts
+    ('prompt_daily_summary_system', '{{PROMPT_DAILY_SUMMARY_SYSTEM}}', 'string', 'System prompt for daily summary generation', false),
+    ('prompt_cover_image_generation', '{{PROMPT_COVER_IMAGE_GENERATION}}', 'string', 'Prompt for generating cover image descriptions', false)
+ON CONFLICT (setting_key) DO NOTHING;
+
+-- Create default admin user (password: admin)
+-- Note: In production, change this password immediately
+INSERT INTO users (username, password_hash, email, is_admin) VALUES
+    ('admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY.S4Y9KqxKDpHK', 'admin@newsfrontier.dev', true)
+ON CONFLICT (username) DO NOTHING;
+
+-- Create default test user (password: test)
+INSERT INTO users (username, password_hash, email, is_admin) VALUES
+    ('test', '$2b$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'test@newsfrontier.dev', false)
+ON CONFLICT (username) DO NOTHING;
+
+COMMIT;

@@ -9,8 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@types/marked": "^6.0.0",
     "clsx": "^2.1.1",
     "daisyui": "^5.0.50",
+    "dompurify": "^3.2.6",
+    "lucide-react": "^0.539.0",
+    "marked": "^16.1.2",
     "next": "15.4.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -19,6 +23,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
