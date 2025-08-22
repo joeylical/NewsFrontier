@@ -12,10 +12,16 @@ import json
 from pathlib import Path
 
 # 导入共享库
-from newsfrontier_lib import get_llm_client, create_summary, generate_content_embedding
+from newsfrontier_lib import get_llm_client
 import requests
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+
+# 添加父目录到系统路径以导入模块化服务
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from summary_generator import SummaryGenerator, PromptManager
+from embedding_generator import EmbeddingGenerator, SimilarityCalculator
+from clustering_service import ClusteringService, BackendClient
 
 # 获取项目根目录
 project_root = Path(__file__).parent.parent.parent
@@ -27,12 +33,28 @@ class ClusterDetectionTester:
         self.config_path = config_path or os.path.join(project_root, 'scripts', 'config.json')
         self.llm_client = None
         self.backend_url = "http://localhost:8000"
+        self.prompt_manager = PromptManager()
+        self.summary_generator = None
+        self.embedding_generator = None
+        self.similarity_calculator = None
+        self.clustering_service = None
         
     async def setup(self):
         """设置AI服务"""
         self.llm_client = get_llm_client()
         # 加载prompts从文件而不是数据库
         await self._load_prompts_from_files()
+        # 初始化模块化服务
+        self.summary_generator = SummaryGenerator(self.prompt_manager)
+        self.embedding_generator = EmbeddingGenerator()
+        self.similarity_calculator = SimilarityCalculator()
+        backend_client = BackendClient(self.backend_url)
+        self.clustering_service = ClusteringService(
+            self.prompt_manager,
+            self.similarity_calculator,
+            backend_client,
+            cluster_threshold=0.7
+        )
         
     async def test_with_article_id(self, article_id, user_id=None):
         """使用article ID测试聚类检测"""
@@ -89,7 +111,7 @@ class ClusterDetectionTester:
         try:
             # 首先生成文章摘要（聚类检测需要摘要）
             print("Generating article summary for cluster analysis...")
-            summary = await self._create_summary(article)
+            summary = self._create_summary(article)
             print(f"Generated Summary: {summary[:200]}...")
             
             # 获取文章的相关主题
@@ -97,14 +119,14 @@ class ClusterDetectionTester:
             
             # 生成标题嵌入
             print("Generating title embedding...")
-            title_embedding = await self._generate_title_embedding(article)
+            title_embedding = self._generate_title_embedding(article)
             
             # 生成摘要嵌入
             print("Generating summary embedding...")
-            summary_embedding = await self._generate_summary_embedding(summary)
+            summary_embedding = self._generate_summary_embedding(summary)
             
             # 查找相似主题（使用双重embedding判断）
-            similar_topics = await self._find_similar_topics(
+            similar_topics = self._find_similar_topics(
                 title_embedding=title_embedding,
                 summary_embedding=summary_embedding, 
                 user_id=user_id, 
@@ -113,16 +135,9 @@ class ClusterDetectionTester:
             
             print(f"Found {len(similar_topics)} similar topics")
             for i, topic in enumerate(similar_topics[:3]):  # 显示前3个相关主题
-                similarity = topic.get('similarity', 0)
-                source = topic.get('similarity_source', 'unknown')
+                similarity = topic.get('similarity_score', 0)
                 print(f"  Topic {i+1}: {topic.get('name', 'Unknown')} "
-                      f"(similarity: {similarity:.3f}, source: {source})")
-                
-                # 显示详细的相似度分数
-                if 'title_similarity' in topic:
-                    print(f"    - Title similarity: {topic['title_similarity']:.3f}")
-                if 'summary_similarity' in topic:
-                    print(f"    - Summary similarity: {topic['summary_similarity']:.3f}")
+                      f"(similarity: {similarity:.3f})")
             
             if similar_topics:
                 # 使用第一个最相关的主题进行聚类检测
@@ -132,7 +147,7 @@ class ClusterDetectionTester:
                 print(f"\nTesting cluster detection for topic ID: {topic_id}")
                 
                 # 获取该主题下的现有事件
-                existing_events = await self._get_events_by_topic(topic_id)
+                existing_events = self._get_events_by_topic(topic_id)
                 
                 print(f"Found {len(existing_events)} existing events for this topic")
                 for i, event in enumerate(existing_events[:3]):  # 显示前3个事件
@@ -143,9 +158,31 @@ class ClusterDetectionTester:
                 print(f"\n{'-'*40}")
                 print("Running cluster detection...")
                 
-                cluster_decision = await self._detect_or_create_cluster(
-                    article, user_id, topic_id, summary, existing_events
+                # 使用模块化的clustering service
+                cluster_result = self.clustering_service.detect_or_create_cluster(
+                    user_id=user_id,
+                    topic_id=topic_id,
+                    topic_name=primary_topic.get('name', 'Unknown Topic'),
+                    article_title=article['title'],
+                    article_summary=summary,
+                    title_embedding=title_embedding,
+                    summary_embedding=summary_embedding
                 )
+                
+                # 转换为测试输出格式
+                if cluster_result:
+                    cluster_decision = {
+                        'action': 'assign' if cluster_result.get('id') else 'create',
+                        'event_id': cluster_result.get('id'),
+                        'title': cluster_result.get('title'),
+                        'description': cluster_result.get('description'),
+                        'reason': f"Clustering service result: {cluster_result}"
+                    }
+                else:
+                    cluster_decision = {
+                        'action': 'ignore',
+                        'reason': 'No cluster decision made by clustering service'
+                    }
                 
                 print(f"\nCluster Decision Result:\n{'-'*40}")
                 print(json.dumps(cluster_decision, indent=2, ensure_ascii=False))
@@ -172,10 +209,10 @@ class ClusterDetectionTester:
                     print(f"Reason: {reason}")
                 
                 # 显示使用的prompt
-                if hasattr(self, 'cluster_prompt'):
+                used_prompt = self.prompt_manager.get_prompt('cluster_detection')
+                if used_prompt:
                     print(f"\nUsed Prompt:\n{'-'*40}")
-                    # print(self.cluster_prompt[:300] + "..." if len(self.cluster_prompt) > 300 else self.cluster_prompt)
-                    print(self.cluster_prompt)
+                    print(used_prompt[:300] + "..." if len(used_prompt) > 300 else used_prompt)
                 
                 return {
                     'article': article,
@@ -210,23 +247,28 @@ class ClusterDetectionTester:
         """从文件加载prompts"""
         prompts_dir = os.path.join(project_root, 'scripts', 'prompts')
         
+        prompt_dict = {}
+            
         # 加载摘要创建prompt
         summary_prompt_file = os.path.join(prompts_dir, 'summary_creation.txt')
         try:
             with open(summary_prompt_file, 'r', encoding='utf-8') as f:
-                self.summary_prompt = f.read().strip()
+                prompt_dict['summary_creation'] = f.read().strip()
         except FileNotFoundError:
-            self.summary_prompt = "Generate a concise summary of the following article:"
+            prompt_dict['summary_creation'] = "Generate a concise summary of the following article:"
             
         # 加载聚类检测prompt
         cluster_prompt_file = os.path.join(prompts_dir, 'cluster_detection.txt')
         try:
             with open(cluster_prompt_file, 'r', encoding='utf-8') as f:
-                self.cluster_prompt = f.read().strip()
+                prompt_dict['cluster_detection'] = f.read().strip()
             print(f"Loaded cluster prompt from: {cluster_prompt_file}")
         except FileNotFoundError:
             print(f"Warning: Prompt file not found: {cluster_prompt_file}")
-            self.cluster_prompt = "Analyze if this article belongs to an existing event cluster."
+            prompt_dict['cluster_detection'] = "Analyze if this article belongs to an existing event cluster."
+            
+        # 设置到prompt manager
+        self.prompt_manager.set_prompts(prompt_dict)
             
     async def _get_article_by_id(self, article_id):
         """从后端API获取文章"""
@@ -239,35 +281,32 @@ class ClusterDetectionTester:
             print(f"Error fetching article: {e}")
             return None
             
-    async def _create_summary(self, article):
+    def _create_summary(self, article):
         """创建文章摘要"""
-        prompt_template = getattr(self, 'summary_prompt', 'Create a summary of: {title}\n\nContent: {content}')
-        return create_summary(
-            title=article['title'],
-            content=article['content'],
-            prompt_template=prompt_template
-        )
+        # 使用新的模块化SummaryGenerator
+        if not self.summary_generator:
+            raise ValueError("Summary generator not initialized")
+            
+        return self.summary_generator.create_article_summary(article)
         
-    async def _generate_title_embedding(self, article):
+    def _generate_title_embedding(self, article):
         """生成标题嵌入"""
-        title = article.get('title', '')
-        if not title:
-            return None
-        return generate_content_embedding(title, "")
+        if not self.embedding_generator:
+            raise ValueError("Embedding generator not initialized")
+            
+        return self.embedding_generator.generate_title_embedding(article)
         
-    async def _generate_summary_embedding(self, summary):
+    def _generate_summary_embedding(self, summary):
         """生成摘要嵌入"""
-        return generate_content_embedding("Summary", summary)
+        if not self.embedding_generator:
+            raise ValueError("Embedding generator not initialized")
+            
+        return self.embedding_generator.generate_summary_embedding(summary)
         
-    async def _find_similar_topics(self, title_embedding=None, summary_embedding=None, user_id=None, similarity_threshold=0.7):
+    def _find_similar_topics(self, title_embedding=None, summary_embedding=None, user_id=None, similarity_threshold=0.7):
         """查找相似主题，使用title和summary embedding的双重判断"""
         try:
-            # 至少需要一个embedding
-            if not title_embedding and not summary_embedding:
-                print("Warning: No embeddings provided for topic similarity comparison")
-                return []
-            
-            # 获取所有topics（这里简化处理，实际应该通过API获取）
+            # 获取所有topics
             topics_response = requests.get(f"{self.backend_url}/api/internal/topics?user_id={user_id}" if user_id else f"{self.backend_url}/api/internal/topics")
             if topics_response.status_code != 200:
                 print(f"Error getting topics: {topics_response.status_code}")
@@ -278,78 +317,28 @@ class ClusterDetectionTester:
                 print("No topics found for comparison")
                 return []
             
-            # 转换embeddings为numpy数组
-            title_embedding_np = None
-            summary_embedding_np = None
-            
-            if title_embedding:
-                title_embedding_np = np.array(title_embedding).reshape(1, -1)
-            if summary_embedding:
-                summary_embedding_np = np.array(summary_embedding).reshape(1, -1)
-            
-            print(f"Using dual embedding similarity comparison:")
+            print(f"Using modular similarity calculator for topic matching")
             print(f"  Title embedding: {'Available' if title_embedding else 'Not available'}")
             print(f"  Summary embedding: {'Available' if summary_embedding else 'Not available'}")
             print(f"  Similarity threshold: {similarity_threshold}")
             
-            similar_topics = []
+            # 使用模块化的SimilarityCalculator
+            similar_topics = self.similarity_calculator.find_similar_topics(
+                article_title_embedding=title_embedding,
+                article_summary_embedding=summary_embedding,
+                topics=topics,
+                threshold=similarity_threshold
+            )
             
-            for topic in topics:
-                topic_vector = topic.get('topic_vector')
-                if not topic_vector:
-                    continue
-                
-                topic_embedding = np.array(topic_vector).reshape(1, -1)
-                
-                # 计算两个embedding的相似度
-                title_similarity = None
-                summary_similarity = None
-                
-                if title_embedding_np is not None:
-                    title_similarity = cosine_similarity(title_embedding_np, topic_embedding)[0][0]
-                
-                if summary_embedding_np is not None:
-                    summary_similarity = cosine_similarity(summary_embedding_np, topic_embedding)[0][0]
-                
-                # 使用较高的相似度作为最终相似度
-                if title_similarity is not None and summary_similarity is not None:
-                    final_similarity = max(title_similarity, summary_similarity)
-                    higher_source = "title" if title_similarity > summary_similarity else "summary"
-                elif title_similarity is not None:
-                    final_similarity = title_similarity
-                    higher_source = "title"
-                elif summary_similarity is not None:
-                    final_similarity = summary_similarity
-                    higher_source = "summary"
-                else:
-                    continue
-
-                
+            # 显示详细信息（保留原来的显示逻辑）
+            for topic in similar_topics:
                 topic_name = topic.get('name', 'Unknown')
                 topic_id = topic.get('id', 'N/A')
+                final_similarity = topic.get('similarity_score', 0)
                 
-                print(f"{topic_name}: {final_similarity}")
-
                 print(f"  Topic '{topic_name}' (ID: {topic_id})")
-                if title_similarity is not None:
-                    print(f"    Title Similarity: {title_similarity:.4f}")
-                if summary_similarity is not None:
-                    print(f"    Summary Similarity: {summary_similarity:.4f}")
-                print(f"    Final Similarity (max, from {higher_source}): {final_similarity:.4f}")
-                print(f"    Match (≥ {similarity_threshold}): {'✅ YES' if final_similarity >= similarity_threshold else '❌ NO'}")
-                
-                if final_similarity >= similarity_threshold:
-                    topic_copy = topic.copy()
-                    topic_copy['similarity'] = float(final_similarity)
-                    topic_copy['similarity_source'] = higher_source
-                    if title_similarity is not None:
-                        topic_copy['title_similarity'] = float(title_similarity)
-                    if summary_similarity is not None:
-                        topic_copy['summary_similarity'] = float(summary_similarity)
-                    similar_topics.append(topic_copy)
-            
-            # 按相似度排序
-            similar_topics.sort(key=lambda x: x['similarity'], reverse=True)
+                print(f"    Final Similarity: {final_similarity:.4f}")
+                print(f"    Match (≥ {similarity_threshold}): ✅ YES")
             
             return similar_topics
             
@@ -359,7 +348,7 @@ class ClusterDetectionTester:
             traceback.print_exc()
             return []
             
-    async def _get_events_by_topic(self, topic_id):
+    def _get_events_by_topic(self, topic_id):
         """获取主题下的事件"""
         try:
             response = requests.get(f"{self.backend_url}/api/internal/topics/{topic_id}/events")
@@ -369,96 +358,6 @@ class ClusterDetectionTester:
         except requests.RequestException as e:
             print(f"Error getting events: {e}")
             return []
-            
-    async def _detect_or_create_cluster(self, article, user_id, topic_id, summary, existing_events):
-        """执行聚类检测"""
-        # 构建prompt
-        prompt = self._build_cluster_prompt(article, user_id, topic_id, summary, existing_events)
-        
-        # Define JSON schema for structured output
-        cluster_schema = {
-            "type": "object",
-            "properties": {
-                "action": {
-                    "type": "string",
-                    "enum": ["assign", "create", "ignore"]
-                },
-                "event_id": {
-                    "type": "integer",
-                },
-                "topic_id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "title": {
-                    "type": "string",
-                },
-                "description": {
-                    "type": "string",
-                },
-                "event_description": {
-                    "type": "string",
-                },
-            },
-            "required": ["action"],
-            "oneOf": [
-                {
-                    "if": {
-                        "properties": {"action": {"const": "create"}}
-                    },
-                    "then": {
-                        "required": ["event_description", "description"]
-                    }
-                },
-                {
-                    "if": {
-                        "properties": {"action": {"const": "assign"}}
-                    },
-                    "then": {
-                        "required": ["event_id"]
-                    }
-                },
-            ],
-            "additionalProperties": False
-        }
-        
-        print(prompt)
-        # 调用LLM with structured output using analysis model
-        response = self.llm_client.create_analysis_completion(prompt,
-                                                              response_schema=cluster_schema,
-                                                              max_tokens=5000)
-        
-        # 解析JSON响应
-        try:
-            return json.loads(response.strip())
-        except json.JSONDecodeError:
-            return {
-                "action": "ignore",
-                "reason": "Failed to parse LLM response"
-            }
-            
-    def _build_cluster_prompt(self, article, user_id, topic_id, summary, existing_events):
-        """构建聚类检测prompt"""
-        events_info = "\n".join([
-            f"- Event {i+1}: {event.get('title', 'Unknown')} (ID: {event.get('id')})"
-            for i, event in enumerate(existing_events[:5])  # 最多显示5个事件
-        ])
-        
-        return f"""{self.cluster_prompt}
-
-Article Information:
-Title: {article['title']}
-Summary: {summary}
-User ID: {user_id}
-Topic ID: {topic_id}
-
-Existing Events in this Topic:
-{events_info or "No existing events"}
-
-Please respond with a JSON object containing:
-{{"action": "assign|create|ignore", "event_id": number_or_null, "title": "string_or_null", "description": "string_or_null", "reason": "explanation"}}"""
         
     async def cleanup(self):
         """清理资源"""

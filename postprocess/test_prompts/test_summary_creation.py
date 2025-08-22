@@ -11,8 +11,12 @@ import asyncio
 from pathlib import Path
 
 # 导入共享库
-from newsfrontier_lib import get_llm_client, create_summary
+from newsfrontier_lib import get_llm_client
 import requests
+
+# 添加父目录到系统路径以导入模块化服务
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from summary_generator import SummaryGenerator, PromptManager
 
 # 获取项目根目录
 project_root = Path(__file__).parent.parent.parent
@@ -24,12 +28,16 @@ class SummaryCreationTester:
         self.config_path = config_path or os.path.join(project_root, 'scripts', 'config.json')
         self.llm_client = None
         self.backend_url = "http://localhost:8000"
+        self.prompt_manager = PromptManager()
+        self.summary_generator = None
         
     async def setup(self):
         """设置AI服务"""
         self.llm_client = get_llm_client()
         # 加载prompts从文件而不是数据库
         await self._load_prompts_from_files()
+        # 初始化summary generator
+        self.summary_generator = SummaryGenerator(self.prompt_manager)
         
     async def test_with_article_id(self, article_id):
         """使用article ID测试摘要生成"""
@@ -93,7 +101,7 @@ class SummaryCreationTester:
             print(f"\n{'-'*40}")
             print("Generating summary...")
             
-            summary = await self._create_summary(article)
+            summary = self._create_summary(article)
             
             print(f"\nGenerated Summary:\n{'-'*40}")
             print(summary)
@@ -106,9 +114,10 @@ class SummaryCreationTester:
             print(f"Character count: {char_count}")
             
             # 显示调用的prompt
-            if hasattr(self, 'summary_prompt'):
+            used_prompt = self.prompt_manager.get_prompt('summary_creation')
+            if used_prompt:
                 print(f"\nUsed Prompt:\n{'-'*40}")
-                print(self.summary_prompt[:300] + "..." if len(self.summary_prompt) > 300 else self.summary_prompt)
+                print(used_prompt[:300] + "..." if len(used_prompt) > 300 else used_prompt)
             
             return {
                 'article': article,
@@ -136,11 +145,15 @@ class SummaryCreationTester:
         
         try:
             with open(summary_prompt_file, 'r', encoding='utf-8') as f:
-                self.summary_prompt = f.read().strip()
+                summary_prompt = f.read().strip()
             print(f"Loaded summary prompt from: {summary_prompt_file}")
+            # 设置到prompt manager
+            self.prompt_manager.set_prompts({'summary_creation': summary_prompt})
         except FileNotFoundError:
             print(f"Warning: Prompt file not found: {summary_prompt_file}")
-            self.summary_prompt = "Generate a concise summary of the following article:"
+            # 使用默认prompt进行测试
+            default_prompt = "Generate a concise summary of the following article:"
+            self.prompt_manager.set_prompts({'summary_creation': default_prompt})
             
     async def _get_article_by_id(self, article_id):
         """从后端API获取文章"""
@@ -156,12 +169,11 @@ class SummaryCreationTester:
             
     async def _create_summary(self, article):
         """创建文章摘要"""
-        prompt_template = getattr(self, 'summary_prompt', 'Create a summary of: {title}\n\nContent: {content}')
-        return create_summary(
-            title=article['title'],
-            content=article['content'],
-            prompt_template=prompt_template
-        )
+        # 使用新的模块化SummaryGenerator
+        if not self.summary_generator:
+            raise ValueError("Summary generator not initialized")
+            
+        return self.summary_generator.create_article_summary(article)
         
     async def cleanup(self):
         """清理资源"""

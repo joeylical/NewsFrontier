@@ -16,6 +16,12 @@ from pathlib import Path
 from newsfrontier_lib import get_llm_client
 import requests
 
+# 添加父目录到系统路径以导入模块化服务
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from summary_generator import PromptManager
+from daily_summary_service import DailySummaryService
+from image_generator import ImageGenerator
+
 # 获取项目根目录
 project_root = Path(__file__).parent.parent.parent
 
@@ -26,12 +32,23 @@ class DailySummaryTester:
         self.config_path = config_path or os.path.join(project_root, 'scripts', 'config.json')
         self.llm_client = None
         self.backend_url = "http://localhost:8000"
+        self.prompt_manager = PromptManager()
+        self.daily_summary_service = None
         
     async def setup(self):
         """设置AI服务"""
         self.llm_client = get_llm_client()
         # 加载prompts从文件而不是数据库
         await self._load_prompts_from_files()
+        # 初始化模块化服务
+        from clustering_service import BackendClient
+        backend_client = BackendClient(self.backend_url)
+        image_generator = ImageGenerator(self.prompt_manager)  
+        self.daily_summary_service = DailySummaryService(
+            self.prompt_manager,
+            backend_client,
+            image_generator
+        )
         
     async def test_with_user_id(self, user_id, date=None):
         """使用用户ID测试每日摘要生成"""
@@ -172,7 +189,7 @@ class DailySummaryTester:
             print(f"\n{'-'*40}")
             print("Generating daily summary...")
             
-            summary_content = await self._create_daily_summary_content(context)
+            summary_content = self._create_daily_summary_content(context)
             
             print(f"\nGenerated Daily Summary:\n{'-'*40}")
             print(summary_content)
@@ -185,9 +202,10 @@ class DailySummaryTester:
             print(f"Character count: {char_count}")
             
             # 显示使用的prompt
-            if hasattr(self, 'daily_summary_prompt'):
+            used_prompt = self.prompt_manager.get_prompt('daily_summary_system')
+            if used_prompt:
                 print(f"\nUsed Prompt:\n{'-'*40}")
-                print(self.daily_summary_prompt[:300] + "..." if len(self.daily_summary_prompt) > 300 else self.daily_summary_prompt)
+                print(used_prompt[:300] + "..." if len(used_prompt) > 300 else used_prompt)
             
             return {
                 'user_id': context.get('user_id'),
@@ -217,15 +235,20 @@ class DailySummaryTester:
         """从文件加载prompts"""
         prompts_dir = os.path.join(project_root, 'scripts', 'prompts')
         
+        prompt_dict = {}
+        
         # 加载每日摘要prompt
         daily_summary_prompt_file = os.path.join(prompts_dir, 'daily_summary_system.txt')
         try:
             with open(daily_summary_prompt_file, 'r', encoding='utf-8') as f:
-                self.daily_summary_prompt = f.read().strip()
+                prompt_dict['daily_summary_system'] = f.read().strip()
             print(f"Loaded daily summary prompt from: {daily_summary_prompt_file}")
         except FileNotFoundError:
             print(f"Warning: Prompt file not found: {daily_summary_prompt_file}")
-            self.daily_summary_prompt = "Create a daily summary of the following articles:"
+            prompt_dict['daily_summary_system'] = "Create a daily summary of the following articles:"
+            
+        # 设置到prompt manager
+        self.prompt_manager.set_prompts(prompt_dict)
             
     async def _get_user_daily_context(self, user_id, date):
         """获取用户每日上下文数据（使用与main.py相同的方式）"""
@@ -303,26 +326,13 @@ class DailySummaryTester:
             traceback.print_exc()
             return None
             
-    async def _create_daily_summary_content(self, context):
-        """创建每日摘要内容（使用与main.py相同的方式）"""
-        # 格式化文章、事件和摘要文本
-        articles_text = self._format_articles_for_summary(context.get('relevant_articles', []))
-        events_text = self._format_events_for_summary(context.get('new_events', []))
-        recent_summaries_text = self._format_recent_summaries(context.get('recent_summaries', []))
+    def _create_daily_summary_content(self, context):
+        """创建每日摘要内容（使用模块化DailySummaryService）"""
+        if not self.daily_summary_service:
+            raise ValueError("Daily summary service not initialized")
         
-        # 使用system prompt模板并填充字段
-        formatted_system_prompt = self.daily_summary_prompt.format(
-            articles=articles_text,
-            summaries=recent_summaries_text,
-            events=events_text
-        )
-
-        print(formatted_system_prompt)
-        
-        # 调用LLM using analysis model for daily summary
-        response = self.llm_client.create_analysis_completion(formatted_system_prompt, max_tokens=2000, temperature=0.7)
-        
-        return response.strip()
+        # 使用模块化服务创建摘要
+        return self.daily_summary_service._create_daily_summary_content(context)
         
     def _format_articles_for_summary(self, articles):
         """Format articles for summary context."""

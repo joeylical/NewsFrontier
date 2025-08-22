@@ -195,15 +195,14 @@ class CoverImageGenerationTester:
             print(f"Error fetching daily summary: {e}")
             return None
             
-    async def _generate_cover_image_description(self, summary_data):
-        """生成封面图片描述"""
-        # 构建prompt
-        prompt = self._build_cover_image_prompt(summary_data)
+    def _generate_cover_image_description(self, summary_data):
+        """生成封面图片描述（使用模块化ImageGenerator）"""
+        if not self.image_generator:
+            raise ValueError("Image generator not initialized")
         
-        # 调用LLM using analysis model for creative cover image generation
-        response = self.llm_client.create_analysis_completion(prompt, max_tokens=300, temperature=0.8)
-        
-        return response.strip() if response else ""
+        # 使用模块化服务生成图片描述
+        summary_content = summary_data.get('content', '')
+        return self.image_generator.generate_cover_image_prompt(summary_content)
         
     def _build_cover_image_prompt(self, summary_data):
         """构建封面图片生成的prompt"""
