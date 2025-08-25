@@ -22,6 +22,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
+# Import enhanced configuration and library
+try:
+    from newsfrontier_lib.config_service import get_config, ConfigKeys
+    from newsfrontier_lib.init_config import init_default_settings, test_encryption
+    logger.info("✅ Enhanced configuration library imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import enhanced configuration: {e}")
+    sys.exit(1)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -40,11 +49,47 @@ class RSSScraperService:
         self.running = True
         self.session = None
         self.backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
+        
+        # Initialize configuration service
+        self.config = get_config()
+        
+        # Setup configuration and encryption
+        self._setup_configuration()
+        
         logger.info(f"Scraper initialized with backend URL: {self.backend_url}")
         
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+    
+    def _setup_configuration(self):
+        """Setup database configuration and encryption."""
+        try:
+            # Test encryption functionality
+            if not test_encryption():
+                logger.warning("Encryption test failed - some features may not work properly")
+            
+            # Initialize default settings if needed
+            init_default_settings()
+            
+            # Get configuration values
+            scraper_interval = self.config.get(ConfigKeys.SCRAPER_INTERVAL, default=60)
+            max_attempts = self.config.get(ConfigKeys.MAX_PROCESSING_ATTEMPTS, default=3)
+            
+            # Store configuration
+            self.scraper_interval = scraper_interval
+            self.max_processing_attempts = max_attempts
+            
+            # Log configuration status
+            logger.info("Configuration Status:")
+            logger.info(f"  Scraper Interval: {scraper_interval} minutes")
+            logger.info(f"  Max Processing Attempts: {max_attempts}")
+            
+        except Exception as e:
+            logger.error(f"Configuration setup failed: {e}")
+            # Set default values
+            self.scraper_interval = 60
+            self.max_processing_attempts = 3
         
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals gracefully."""
@@ -354,8 +399,11 @@ class RSSScraperService:
             try:
                 self.run_scraper_cycle()
                 
-                # Wait before next cycle (default 5 minutes)
-                for _ in range(30):  # 5 minutes = 300 seconds
+                # Wait before next cycle (configurable interval)
+                wait_seconds = self.scraper_interval * 60  # Convert minutes to seconds
+                logger.debug(f"Waiting {self.scraper_interval} minutes before next cycle")
+                
+                for _ in range(wait_seconds):
                     if not self.running:
                         break
                     time.sleep(1)

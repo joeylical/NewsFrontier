@@ -383,10 +383,12 @@ start_frontend() {
     
     # Export environment variables for frontend
     export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
+    export NEXTJS_HOST="${NEXTJS_HOST:-localhost}"
+    export NEXTJS_PORT="${NEXTJS_PORT:-3000}"
     
     # Start frontend server in background
-    print_status "Starting Next.js server on http://localhost:3000"
-    pnpm run dev &
+    print_status "Starting Next.js server on http://$NEXTJS_HOST:$NEXTJS_PORT"
+    pnpm run dev -H $NEXTJS_HOST -p $NEXTJS_PORT &
     FRONTEND_PID=$!
     
     cd ..
@@ -470,7 +472,7 @@ show_status() {
     echo "📊 Service Status:"
     echo "  • Database (PostgreSQL): http://localhost:5432"
     echo "  • Backend API:           http://localhost:8000"
-    echo "  • Frontend Web App:      http://localhost:3000"
+    echo "  • Frontend Web App:      http://$NEXTJS_HOST:NEXTJS_PORT"
     echo "  • API Documentation:     http://localhost:8000/docs"
     echo "  • RSS Scraper:           Running in background"
     echo "  • AI PostProcess:        Running in background"

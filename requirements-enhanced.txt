@@ -1,0 +1,17 @@
+# Enhanced NewsFrontier Dependencies
+# Additional requirements for database-configurable LLM operations
+
+# Encryption library for secure key storage
+cryptography>=41.0.0
+
+# LiteLLM for unified API access to multiple LLM providers
+litellm>=1.40.0
+
+# Additional type checking for enhanced configuration
+pydantic>=2.0.0
+
+# JSON schema validation
+jsonschema>=4.0.0
+
+# Enhanced HTTP client for API calls
+httpx>=0.24.0

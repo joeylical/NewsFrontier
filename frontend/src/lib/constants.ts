@@ -38,6 +38,7 @@ export const API_ENDPOINTS = {
     RSS_FEEDS: '/api/admin/rss-feeds',
     SYSTEM: '/api/admin/system',
     SETTINGS: '/api/admin/system-settings',
+    PROVIDER_URLS: '/api/admin/provider-urls',
   },
 } as const;
 

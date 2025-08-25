@@ -4,6 +4,7 @@ Database connection and session management utilities.
 
 import os
 from typing import Generator
+from contextlib import contextmanager
 from sqlalchemy import create_engine as sqlalchemy_create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -39,6 +40,25 @@ def create_session_maker(engine=None):
 
 def get_session() -> Generator[Session, None, None]:
     """Dependency function to get database session."""
+    SessionLocal = create_session_maker()
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def get_db() -> Generator[Session, None, None]:
+    """Alias for get_session to maintain compatibility."""
+    yield from get_session()
+
+def create_db_session() -> Session:
+    """Create a database session that should be manually closed."""
+    SessionLocal = create_session_maker()
+    return SessionLocal()
+
+@contextmanager
+def get_db_session():
+    """Context manager for database sessions."""
     SessionLocal = create_session_maker()
     db = SessionLocal()
     try:

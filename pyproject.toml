@@ -3,7 +3,11 @@ name = "newsfrontier"
 version = "0.1.0"
 description = "NewsFrontier news aggregation platform"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "cryptography>=45.0.6",
+    "jsonschema>=4.25.1",
+    "litellm>=1.76.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -11,6 +15,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = []
+skip-excluded-dirs = true
+only-include = ["*.md"]
 
 [tool.uv.workspace]
 members = [

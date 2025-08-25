@@ -58,6 +58,18 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="NewsFrontier API", version="0.1.0")
 
+# Import and add admin settings router
+try:
+    from admin_settings_api import router as admin_settings_router
+    app.include_router(admin_settings_router)
+    print("✅ Admin settings API routes added")
+except ImportError as e:
+    print(f"❌ Failed to import admin settings API: {e}")
+except Exception as e:
+    print(f"❌ Unexpected error adding admin routes: {e}")
+
+# Admin interface is handled by the Next.js frontend
+
 # Add logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

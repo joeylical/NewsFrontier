@@ -208,7 +208,51 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
     ('prompt_cluster_detection', '{{PROMPT_CLUSTER_DETECTION}}', 'string', 'Prompt for detecting and clustering news events', false),
     -- Daily Summary Prompts
     ('prompt_daily_summary_system', '{{PROMPT_DAILY_SUMMARY_SYSTEM}}', 'string', 'System prompt for daily summary generation', false),
-    ('prompt_cover_image_generation', '{{PROMPT_COVER_IMAGE_GENERATION}}', 'string', 'Prompt for generating cover image descriptions', false)
+    ('prompt_cover_image_generation', '{{PROMPT_COVER_IMAGE_GENERATION}}', 'string', 'Prompt for generating cover image descriptions', false),
+    
+    -- Default API Configuration
+    ('default_llm_provider', 'openai', 'string', 'Default API provider for LLM services', false),
+    ('default_llm_api_url', 'https://api.openai.com/v1', 'string', 'Default API base URL', false),
+    ('default_llm_api_key_encrypted', NULL, 'string', 'Default API key for LLM services', false),
+    
+    -- Summary Model Configuration
+    ('llm_summary_model', 'gpt-3.5-turbo', 'string', 'Model name for article summaries', false),
+    ('llm_summary_use_default', 'true', 'boolean', 'Use default API configuration for summary model', false),
+    ('llm_summary_api_url', NULL, 'string', 'Custom API base URL for summary model', false),
+    ('llm_summary_api_key_encrypted', NULL, 'string', 'Custom API key for summary model', false),
+    
+    -- Analysis Model Configuration  
+    ('llm_analysis_model', 'gpt-4', 'string', 'Model name for analysis tasks', false),
+    ('llm_analysis_use_default', 'true', 'boolean', 'Use default API configuration for analysis model', false),
+    ('llm_analysis_api_url', NULL, 'string', 'Custom API base URL for analysis model', false),
+    ('llm_analysis_api_key_encrypted', NULL, 'string', 'Custom API key for analysis model', false),
+    
+    -- Embedding Model Configuration
+    ('llm_embedding_model', 'text-embedding-ada-002', 'string', 'Model name for embeddings', false),
+    ('llm_embedding_use_default', 'true', 'boolean', 'Use default API configuration for embedding model', false),
+    ('llm_embedding_api_url', NULL, 'string', 'Custom API base URL for embedding model', false),
+    ('llm_embedding_api_key_encrypted', NULL, 'string', 'Custom API key for embedding model', false),
+    
+    -- Image Model Configuration
+    ('llm_image_model', 'dall-e-3', 'string', 'Model name for image generation', false),
+    ('llm_image_use_default', 'true', 'boolean', 'Use default API configuration for image model', false),
+    ('llm_image_api_url', NULL, 'string', 'Custom API base URL for image model', false),
+    ('llm_image_api_key_encrypted', NULL, 'string', 'Custom API key for image model', false),
+    
+    -- Feature Toggles
+    ('daily_summary_enabled', 'true', 'boolean', 'Enable daily summary generation', false),
+    ('daily_summary_cover_enabled', 'true', 'boolean', 'Enable daily summary cover image generation', false),
+    
+    -- Processing Configuration
+    ('scraper_interval_minutes', '60', 'integer', 'RSS scraper interval in minutes', false),
+    ('postprocess_interval_minutes', '30', 'integer', 'Post-processing interval in minutes', false),
+    
+    -- S3 Configuration
+    ('s3_region', 'us-east-1', 'string', 'S3 region', false),
+    ('s3_bucket', NULL, 'string', 'S3 bucket name', false),
+    ('s3_endpoint_encrypted', NULL, 'string', 'S3 endpoint URL (encrypted)', false),
+    ('s3_access_key_id_encrypted', NULL, 'string', 'S3 access key ID (encrypted)', false),
+    ('s3_secret_key_encrypted', NULL, 'string', 'S3 secret access key (encrypted)', false)
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- Create default admin user (password: admin)

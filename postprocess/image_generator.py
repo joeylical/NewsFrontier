@@ -14,11 +14,15 @@ from datetime import date
 
 # Import LLM and S3 functionality from shared library
 try:
-    from newsfrontier_lib import get_llm_client, get_s3_client, upload_cover_image
+    from newsfrontier_lib import get_llm_client
+    from newsfrontier_lib.s3_client import get_s3_client, upload_cover_image
+    from newsfrontier_lib.llm_client_new import get_enhanced_llm_client
+    from newsfrontier_lib.s3_client_new import get_enhanced_s3_client
+    from newsfrontier_lib.config_service import get_config, ConfigKeys
     logger = logging.getLogger(__name__)
 except ImportError as e:
     logger = logging.getLogger(__name__)
-    logger.error(f"Failed to import required libraries: {e}")
+    logger.error(f"Failed to import enhanced libraries: {e}")
     raise
 
 
@@ -39,14 +43,22 @@ class ImageGenerator:
             prompt_manager: Manager for retrieving prompts from database
         """
         self.prompt_manager = prompt_manager
-        self.llm_client = get_llm_client()
-        self.s3_client = get_s3_client()
+        self.config = get_config()
+        
+        # Use enhanced clients with database configuration
+        self.llm_client = get_enhanced_llm_client()
+        self.s3_client = get_enhanced_s3_client()
+        
+        # Keep fallback clients for compatibility
+        self.fallback_llm_client = get_llm_client()
+        self.fallback_s3_client = get_s3_client()
+        
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         
-        # Image generation settings from environment
+        # Image generation settings from configuration with environment fallback
         self.aspect_ratio = os.getenv('IMAGEGEN_ASPECT_RATIO', '16:9')
         self.person_generation = os.getenv('IMAGEGEN_PERSON_GENERATE', 'dont_allow')
-        self.image_model = os.getenv('IMAGEGEN_MODEL', 'imagen-3.0-generate-002')
+        self.image_model = self.config.get(ConfigKeys.LLM_IMAGE_MODEL, default='imagen-3.0-generate-002')
         
         self.logger.info(f"Initialized image generator with model: {self.image_model}")
         self.logger.info(f"Image settings - Aspect ratio: {self.aspect_ratio}, Person generation: {self.person_generation}")
@@ -130,13 +142,22 @@ class ImageGenerator:
                 return None
             
             # Generate image using LLM client
-            self.logger.info("Generating cover image using Imagen model...")
+            self.logger.info("Generating cover image using enhanced Imagen model...")
             
             image_bytes = self.llm_client.generate_image(
                 prompt=cover_prompt,
                 aspect_ratio=self.aspect_ratio,
                 person_generation=self.person_generation
             )
+            
+            # Fallback to original client if enhanced client fails
+            if not image_bytes and self.fallback_llm_client.is_available():
+                self.logger.info("Trying fallback LLM client for image generation...")
+                image_bytes = self.fallback_llm_client.generate_image(
+                    prompt=cover_prompt,
+                    aspect_ratio=self.aspect_ratio,
+                    person_generation=self.person_generation
+                )
             
             if not image_bytes:
                 self.logger.error("Failed to generate cover image - LLM returned no data")
@@ -155,7 +176,14 @@ class ImageGenerator:
             # Format date for file naming
             date_str = summary_date.strftime("%Y%m%d") if hasattr(summary_date, 'strftime') else str(summary_date).replace('-', '')
             
-            s3_key = upload_cover_image(image_bytes, date_str)
+            # Try enhanced S3 client first, then fallback
+            filename = f"covers/daily_cover_{date_str}.png"
+            s3_key = self.s3_client.upload_image(image_bytes, filename)
+            
+            # Fallback to original S3 client if enhanced client fails
+            if not s3_key and self.fallback_s3_client.is_available():
+                self.logger.info("Trying fallback S3 client for image upload...")
+                s3_key = upload_cover_image(image_bytes, date_str)
             
             if s3_key:
                 self.logger.info(f"Successfully uploaded cover image: {s3_key}")

@@ -14,10 +14,12 @@ from typing import Dict, Any, Optional, List
 # Import LLM functionality from shared library
 try:
     from newsfrontier_lib import get_llm_client
+    from newsfrontier_lib.llm_client_new import get_enhanced_llm_client
+    from newsfrontier_lib.config_service import get_config, ConfigKeys
     logger = logging.getLogger(__name__)
 except ImportError as e:
     logger = logging.getLogger(__name__)
-    logger.error(f"Failed to import LLM library: {e}")
+    logger.error(f"Failed to import enhanced LLM library: {e}")
     raise
 
 
@@ -45,7 +47,12 @@ class DailySummaryService:
         self.prompt_manager = prompt_manager
         self.backend_client = backend_client
         self.image_generator = image_generator
-        self.llm_client = get_llm_client()
+        self.config = get_config()
+        
+        # Use enhanced clients with fallback
+        self.llm_client = get_enhanced_llm_client()
+        self.fallback_llm_client = get_llm_client()
+        
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
     
     def generate_user_daily_summary(self, user_id: int, username: str, summary_date: Optional[date] = None) -> bool:
@@ -472,12 +479,19 @@ class DailySummaryService:
             True if saved successfully, False otherwise
         """
         try:
-            # Generate and upload cover image if prompt available
+            # Generate and upload cover image if prompt available and enabled
             cover_s3key = None
-            if cover_prompt:
+            cover_enabled = self.config.get(ConfigKeys.DAILY_SUMMARY_COVER_ENABLED, default=True)
+            
+            if cover_prompt and cover_enabled:
+                self.logger.info(f"Generating cover image for user {user_id} daily summary")
                 cover_s3key = self.image_generator.generate_and_upload_cover_image(
                     cover_prompt, summary_date
                 )
+            elif cover_prompt and not cover_enabled:
+                self.logger.info("Cover image generation is disabled")
+            elif not cover_prompt:
+                self.logger.warning("No cover prompt available for image generation")
             
             # Save summary via backend
             success = self.backend_client.save_daily_summary(

@@ -35,10 +35,14 @@ from daily_summary_service import DailySummaryService
 # Import LLM functionality from shared library
 try:
     from newsfrontier_lib import get_llm_client
+    from newsfrontier_lib.llm_client_new import get_enhanced_llm_client
+    from newsfrontier_lib.s3_client_new import get_enhanced_s3_client
+    from newsfrontier_lib.config_service import get_config, ConfigKeys
+    from newsfrontier_lib.init_config import init_default_settings, test_encryption
     logger = logging.getLogger(__name__)
-    logger.info("✅ LLM library imported successfully")
+    logger.info("✅ Enhanced LLM library imported successfully")
 except ImportError as e:
-    print(f"❌ LLM library import failed: {e}")
+    print(f"❌ Enhanced LLM library import failed: {e}")
     import sys
     sys.exit(1)
 
@@ -74,15 +78,47 @@ class AIPostProcessService:
         
         logger.info(f"PostProcess initialized with backend URL: {self.backend_url}")
         
+        # Initialize configuration service
+        self.config = get_config()
+        
+        # Test encryption and initialize default settings
+        self._setup_configuration()
+        
+        # System settings cache - loaded from database configuration
+        self.similarity_threshold = self.config.get(ConfigKeys.CLUSTER_THRESHOLD, default=0.3)
+        self.cluster_threshold = self.config.get(ConfigKeys.CLUSTER_THRESHOLD, default=0.7)
+        
         # Initialize modular services
         self._initialize_services()
         
-        # System settings cache - will be loaded from database
-        self.similarity_threshold = 0.3  # Default value
-        self.cluster_threshold = 0.7  # Default value for event embedding similarity
-        
         # Topics cache - will be loaded from database each cycle
         self.cached_topics = []
+    
+    def _setup_configuration(self):
+        """Setup database configuration and encryption."""
+        try:
+            # Test encryption functionality
+            if not test_encryption():
+                logger.warning("Encryption test failed - some features may not work properly")
+            
+            # Initialize default settings if needed
+            init_default_settings()
+            
+            # Log configuration status
+            daily_summary_enabled = self.config.get(ConfigKeys.DAILY_SUMMARY_ENABLED, default=True)
+            cover_enabled = self.config.get(ConfigKeys.DAILY_SUMMARY_COVER_ENABLED, default=True)
+            scraper_interval = self.config.get(ConfigKeys.SCRAPER_INTERVAL, default=60)
+            postprocess_interval = self.config.get(ConfigKeys.POSTPROCESS_INTERVAL, default=30)
+            
+            logger.info("Configuration Status:")
+            logger.info(f"  Daily Summary: {'✓' if daily_summary_enabled else '✗'}")
+            logger.info(f"  Cover Images: {'✓' if cover_enabled else '✗'}")
+            logger.info(f"  Scraper Interval: {scraper_interval} minutes")
+            logger.info(f"  PostProcess Interval: {postprocess_interval} minutes")
+            
+        except Exception as e:
+            logger.error(f"Configuration setup failed: {e}")
+            # Continue with default settings
         
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -91,6 +127,10 @@ class AIPostProcessService:
     def _initialize_services(self):
         """Initialize all modular services."""
         try:
+            # Get enhanced clients
+            self.enhanced_llm_client = get_enhanced_llm_client()
+            self.enhanced_s3_client = get_enhanced_s3_client()
+            
             # Shared components
             self.prompt_manager = PromptManager()
             self.backend_client = BackendAPIClient(self.backend_url)
@@ -492,7 +532,9 @@ class AIPostProcessService:
                 current_date = current_time.date()
                 
                 # Check for daily summary generation (00:00-00:30)
-                if (last_daily_summary_date != current_date and 
+                daily_summary_enabled = self.config.get(ConfigKeys.DAILY_SUMMARY_ENABLED, default=True)
+                if (daily_summary_enabled and 
+                    last_daily_summary_date != current_date and 
                     current_time.hour == 0 and current_time.minute < 30):
                     try:
                         logger.info("Starting daily summary generation for all users...")
@@ -501,6 +543,8 @@ class AIPostProcessService:
                         logger.info("Daily summary generation completed")
                     except Exception as e:
                         logger.error(f"Error in daily summary generation: {e}")
+                elif not daily_summary_enabled:
+                    logger.debug("Daily summary generation is disabled")
                 
                 # Regular article processing cycle
                 self.run_processing_cycle()
@@ -515,7 +559,9 @@ class AIPostProcessService:
                 logger.error(f"Error in daemon loop: {e}")
                 if not self.running:
                     break
-                time.sleep(60)  # Wait 1 minute before retry
+                # Wait for configurable interval before next cycle
+                postprocess_interval = self.config.get(ConfigKeys.POSTPROCESS_INTERVAL, default=2)
+                time.sleep(postprocess_interval * 60)  # Convert minutes to seconds
         
         logger.info("AI postprocessing daemon stopped")
         return True
@@ -643,6 +689,33 @@ class BackendAPIClient:
         except Exception as e:
             self.logger.error(f"Error saving daily summary: {e}")
             return False
+    
+    def get_events_for_topic(self, user_id: int, topic_id: int) -> List[Dict[str, Any]]:
+        """
+        Get existing event clusters for user and topic.
+        
+        Args:
+            user_id: User database ID
+            topic_id: Topic database ID
+            
+        Returns:
+            List of event dictionaries
+        """
+        try:
+            params = {'user_id': user_id, 'topic_id': topic_id}
+            response = self.requests.get(
+                f"{self.backend_url}/api/internal/events", 
+                params=params
+            )
+            response.raise_for_status()
+            
+            events = response.json()
+            self.logger.debug(f"Retrieved {len(events)} events for user {user_id}, topic {topic_id}")
+            return events
+            
+        except Exception as e:
+            self.logger.error(f"Error getting events for topic: {e}")
+            return []
 
 
 # HTTP API endpoints for external triggers
