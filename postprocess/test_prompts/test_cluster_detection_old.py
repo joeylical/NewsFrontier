@@ -264,7 +264,7 @@ class ClusterDetectionTester:
         """生成摘要嵌入"""
         return generate_content_embedding("Summary", summary)
         
-    async def _find_similar_topics(self, title_embedding=None, summary_embedding=None, user_id=None, similarity_threshold=0.7):
+    async def _find_similar_topics(self, title_embedding=None, summary_embedding=None, user_id=None, similarity_threshold=0.62):
         """查找相似主题，使用title和summary embedding的双重判断"""
         try:
             # 至少需要一个embedding

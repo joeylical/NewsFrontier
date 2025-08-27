@@ -34,11 +34,11 @@ from daily_summary_service import DailySummaryService
 
 # Import LLM functionality from shared library
 try:
-    from newsfrontier_lib import get_llm_client
     from newsfrontier_lib.llm_client_new import get_enhanced_llm_client
     from newsfrontier_lib.s3_client_new import get_enhanced_s3_client
     from newsfrontier_lib.config_service import get_config, ConfigKeys
     from newsfrontier_lib.init_config import init_default_settings, test_encryption
+    from newsfrontier_lib.text_utils import prepare_text_for_processing
     logger = logging.getLogger(__name__)
     logger.info("✅ Enhanced LLM library imported successfully")
 except ImportError as e:
@@ -85,8 +85,8 @@ class AIPostProcessService:
         self._setup_configuration()
         
         # System settings cache - loaded from database configuration
-        self.similarity_threshold = self.config.get(ConfigKeys.CLUSTER_THRESHOLD, default=0.3)
-        self.cluster_threshold = self.config.get(ConfigKeys.CLUSTER_THRESHOLD, default=0.7)
+        self.similarity_threshold = self.config.get(ConfigKeys.TOPIC_SIMILARITY_THRESHOLD, default=0.62)
+        self.cluster_threshold = self.config.get(ConfigKeys.CLUSTER_THRESHOLD, default=0.75)
         
         # Initialize modular services
         self._initialize_services()
@@ -133,7 +133,8 @@ class AIPostProcessService:
             
             # Shared components
             self.prompt_manager = PromptManager()
-            self.backend_client = BackendAPIClient(self.backend_url)
+            self.backend_api_client = BackendAPIClient(self.backend_url)
+            self.backend_client = BackendClient(self.backend_url)
             
             # Core services
             self.embedding_generator = EmbeddingGenerator()
@@ -151,7 +152,7 @@ class AIPostProcessService:
             
             self.daily_summary_service = DailySummaryService(
                 self.prompt_manager,
-                self.backend_client,
+                self.backend_api_client,
                 self.image_generator
             )
             
@@ -190,8 +191,8 @@ class AIPostProcessService:
         """Reload AI prompts, system settings, and topics cache from database."""
         try:
             # Load system settings
-            self.similarity_threshold = float(self._get_system_setting('similarity_threshold', '0.3'))
-            self.cluster_threshold = float(self._get_system_setting('cluster_threshold', '0.7'))
+            self.similarity_threshold = self.config.get(ConfigKeys.TOPIC_SIMILARITY_THRESHOLD, default=0.62)
+            self.cluster_threshold = self.config.get(ConfigKeys.CLUSTER_THRESHOLD, default=0.75)
             
             logger.info(f"Loaded similarity threshold: {self.similarity_threshold}")
             logger.info(f"Loaded cluster threshold: {self.cluster_threshold}")
@@ -267,6 +268,97 @@ class AIPostProcessService:
             logger.error(f"Failed to get pending articles: {e}")
             return []
     
+    def process_articles_batch(self, articles: List[Dict[str, Any]]) -> Dict[str, int]:
+        """
+        Process multiple articles in batch through AI pipeline.
+        
+        Args:
+            articles: List of article dictionaries with content and metadata
+            
+        Returns:
+            Dictionary with processing statistics
+        """
+        if not articles:
+            return {"successful": 0, "failed": 0, "total": 0}
+            
+        logger.info(f"Processing batch of {len(articles)} articles")
+        batch_updates = []
+        successful = 0
+        failed = 0
+        
+        for article in articles:
+            article_id = article.get('id')
+            title = article.get('title', 'Untitled')
+            
+            try:
+                logger.info(f"Processing article in batch: {title[:50]}...")
+                
+                # Step 1: Generate clean text (remove HTML tags)
+                content = article.get('content', '')
+                title = article.get('title', '')
+                clean_text = prepare_text_for_processing(content, title)
+                
+                # Step 2: Generate title embedding
+                title_embedding = self.embedding_generator.generate_title_embedding(article)
+                
+                # Step 3: Create AI summary (using clean text)
+                # Create modified article dict with clean text for processing
+                clean_article = article.copy()
+                clean_article['content'] = clean_text
+                summary = self.summary_generator.create_article_summary(clean_article)
+                
+                # Check if processing completely failed
+                if not title_embedding and not summary:
+                    logger.error(f"Failed to generate any content for article {article_id}")
+                    batch_updates.append({
+                        "article_id": article_id,
+                        "error_message": "Failed to generate any AI content"
+                    })
+                    failed += 1
+                    continue
+                
+                # Prepare update data
+                update_data = {
+                    "article_id": article_id,
+                    "title_embedding": title_embedding,
+                    "summary": summary,
+                    "clean_text": clean_text,
+                    "embedding_model": self.embedding_generator.embedding_model,
+                    "summary_model": self.config.get(ConfigKeys.LLM_SUMMARY_MODEL, default="gemini-1.5-flash"),
+                }
+                
+                batch_updates.append(update_data)
+                successful += 1
+                
+                # Individual topic matching and clustering (still done per article)
+                if title_embedding:
+                    try:
+                        user_id = article.get('user_id')
+                        self._process_topic_matching_and_clustering(
+                            article_id, title, title_embedding, None, summary, user_id
+                        )
+                    except Exception as e:
+                        logger.warning(f"Topic matching failed for article {article_id}: {e}")
+                
+                logger.info(f"Successfully prepared batch data for article: {title[:50]}...")
+                
+            except Exception as e:
+                logger.error(f"Failed to process article {article_id}: {e}")
+                batch_updates.append({
+                    "article_id": article_id,
+                    "error_message": str(e)
+                })
+                failed += 1
+        
+        # Send batch update to backend
+        if batch_updates:
+            batch_success = self._batch_update_article_processing(batch_updates)
+            if not batch_success:
+                logger.error("Batch update to backend failed")
+        
+        logger.info(f"Batch processing completed: {successful} successful, {failed} failed")
+        return {"successful": successful, "failed": failed, "total": len(articles)}
+
     def process_article(self, article: Dict[str, Any]) -> bool:
         """
         Process a single article through complete AI pipeline using modular services.
@@ -284,13 +376,20 @@ class AIPostProcessService:
         logger.info(f"Processing article: {title[:50]}...")
         
         try:
-            # Step 1: Generate title embedding
+            # Step 1: Generate clean text (remove HTML tags)
+            content = article.get('content', '')
+            title = article.get('title', '')
+            clean_text = prepare_text_for_processing(content, title)
+            
+            # Step 2: Generate title embedding
             title_embedding = self.embedding_generator.generate_title_embedding(article)
             
-            # Step 2: Create AI summary
-            summary = self.summary_generator.create_article_summary(article)
+            # Step 3: Create AI summary (using clean text)
+            clean_article = article.copy()
+            clean_article['content'] = clean_text
+            summary = self.summary_generator.create_article_summary(clean_article)
             
-            # Step 3: Generate summary embedding
+            # Step 4: Generate summary embedding
             summary_embedding = None
             if summary:
                 summary_embedding = self.embedding_generator.generate_summary_embedding(summary)
@@ -301,11 +400,12 @@ class AIPostProcessService:
                 self._update_article_processing(article_id, error_message="Failed to generate any AI content")
                 return False
             
-            # Step 4: Update article with results
+            # Step 5: Update article with results
             self._update_article_processing(
                 article_id,
                 title_embedding=title_embedding,
                 summary=summary,
+                clean_text=clean_text,
                 summary_embedding=summary_embedding
             )
             
@@ -405,6 +505,36 @@ class AIPostProcessService:
             logger.error(f"Failed to create article-topic association: {e}")
             return False
     
+    def _batch_update_article_processing(self, batch_updates: List[Dict[str, Any]]) -> bool:
+        """Batch update multiple articles with processing results via backend API."""
+        try:
+            # Add processed_at timestamp to each update
+            processed_at = datetime.now().isoformat()
+            for update in batch_updates:
+                if 'processed_at' not in update:
+                    update['processed_at'] = processed_at
+            
+            data = {
+                'updates': batch_updates,
+                'processed_at': processed_at
+            }
+            
+            response = requests.post(
+                f"{self.backend_url}/api/internal/articles/batch-process",
+                json=data
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            successful = result.get('successful_updates', 0)
+            failed = result.get('failed_updates', 0)
+            logger.info(f"Batch updated {successful} articles successfully, {failed} failed")
+            return True
+            
+        except requests.RequestException as e:
+            logger.error(f"Failed to batch update articles: {e}")
+            return False
+
     def _update_article_processing(self, article_id: int, **kwargs) -> bool:
         """Update article with processing results via backend API."""
         try:
@@ -413,7 +543,8 @@ class AIPostProcessService:
                 'summary_embedding': kwargs.get('summary_embedding'),
                 'embedding_model': self.embedding_generator.embedding_model,
                 'summary': kwargs.get('summary'),
-                'summary_model': get_llm_client().default_chat_model if get_llm_client() else None,
+                'clean_text': kwargs.get('clean_text'),
+                'summary_model': self.config.get(ConfigKeys.LLM_SUMMARY_MODEL, default="gemini-1.5-flash"),
                 'processed_at': datetime.now().isoformat(),
                 'error_message': kwargs.get('error_message')
             }
@@ -439,8 +570,8 @@ class AIPostProcessService:
         logger.info(f"Processing new topic '{topic_name}' (ID: {topic_id}) for user {user_id}")
         
         try:
-            # Use backend client to process existing articles
-            return self.backend_client.backfill_existing_articles(
+            # Use backend API client to process existing articles
+            return self.backend_api_client.backfill_existing_articles(
                 topic_id=topic_id,
                 topic_embedding=topic_embedding,
                 user_id=user_id,
@@ -469,27 +600,44 @@ class AIPostProcessService:
             logger.info("No articles need processing at this time")
             return
         
-        # Process articles
-        successful_articles = 0
-        failed_articles = 0
+        # Check if batch processing is enabled
+        config_service = get_config()
+        batch_enabled = config_service.get('batch_processing_enabled', True)
         
-        for article in pending_articles:
-            if not self.running:
-                logger.info("Postprocessor stopped during cycle")
-                break
-            
+        if batch_enabled:
+            # Process articles in batch
+            logger.info(f"Processing {len(pending_articles)} articles in batch mode")
             try:
-                if self.process_article(article):
-                    successful_articles += 1
-                else:
-                    failed_articles += 1
-                
-                # Small delay between articles
-                time.sleep(0.5)
-                
+                result = self.process_articles_batch(pending_articles)
+                successful_articles = result['successful']
+                failed_articles = result['failed']
             except Exception as e:
-                logger.error(f"Unexpected error processing article: {e}")
-                failed_articles += 1
+                logger.error(f"Batch processing failed, falling back to individual processing: {e}")
+                batch_enabled = False
+        
+        if not batch_enabled:
+            # Process articles individually (fallback or when batch is disabled)
+            logger.info(f"Processing {len(pending_articles)} articles individually")
+            successful_articles = 0
+            failed_articles = 0
+            
+            for article in pending_articles:
+                if not self.running:
+                    logger.info("Postprocessor stopped during cycle")
+                    break
+                
+                try:
+                    if self.process_article(article):
+                        successful_articles += 1
+                    else:
+                        failed_articles += 1
+                    
+                    # Small delay between articles
+                    time.sleep(0.5)
+                    
+                except Exception as e:
+                    logger.error(f"Unexpected error processing article: {e}")
+                    failed_articles += 1
         
         logger.info(f"Processing cycle completed: {successful_articles} successful, {failed_articles} failed")
     

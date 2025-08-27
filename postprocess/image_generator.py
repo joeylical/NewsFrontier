@@ -14,8 +14,6 @@ from datetime import date
 
 # Import LLM and S3 functionality from shared library
 try:
-    from newsfrontier_lib import get_llm_client
-    from newsfrontier_lib.s3_client import get_s3_client, upload_cover_image
     from newsfrontier_lib.llm_client_new import get_enhanced_llm_client
     from newsfrontier_lib.s3_client_new import get_enhanced_s3_client
     from newsfrontier_lib.config_service import get_config, ConfigKeys
@@ -50,8 +48,8 @@ class ImageGenerator:
         self.s3_client = get_enhanced_s3_client()
         
         # Keep fallback clients for compatibility
-        self.fallback_llm_client = get_llm_client()
-        self.fallback_s3_client = get_s3_client()
+        self.fallback_llm_client = get_enhanced_llm_client()
+        self.fallback_s3_client = get_enhanced_s3_client()
         
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         

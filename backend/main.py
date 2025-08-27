@@ -27,12 +27,14 @@ try:
         RSSSubscription
     )
     from sqlalchemy import func
+    from sqlalchemy.orm import Session
     from newsfrontier_lib.schemas import (
         RSSFeedCreate, RSSFeedUpdate, RSSFeedResponse,
         RSSSubscriptionCreate, RSSSubscriptionUpdate, RSSSubscriptionResponse,
         RSSItemResponse, TopicCreate, TopicUpdate, TopicResponse,
         EventResponse, UserSummaryResponse, UserResponse
     )
+    from newsfrontier_lib.config_service import get_config, ConfigKeys
     from newsfrontier_lib import generate_topic_embedding as lib_generate_topic_embedding
     print("✅ Database modules imported successfully")
 except ImportError as e:
@@ -299,9 +301,15 @@ class ArticleProcessingUpdate(BaseModel):
     title_embedding: Optional[List[float]] = None
     embedding_model: Optional[str] = None
     summary: Optional[str] = None
+    clean_text: Optional[str] = None
     summary_model: Optional[str] = None
     processed_at: Optional[str] = None
     error_message: Optional[str] = None
+
+class BatchArticleProcessingUpdate(BaseModel):
+    """Batch update for multiple articles"""
+    updates: List[Dict[str, Any]]  # List of {article_id, ...ArticleProcessingUpdate fields}
+    processed_at: Optional[str] = None
 
 class ArticleDerivativesData(BaseModel):
     rss_item_id: int
@@ -376,6 +384,44 @@ def generate_topic_embedding(topic_name: str) -> Optional[List[float]]:
         return embedding
     except Exception as e:
         logger.error(f"Embedding generation failed for topic '{topic_name}': {e}")
+        return None
+
+def get_or_create_embedding(db: Session, embedding_vector: List[float], model_name: str = None, model_version: str = None) -> Optional[int]:
+    """Get existing embedding or create new one, returns embedding_id."""
+    try:
+        # Get model name from database configuration if not provided
+        if not model_name:
+            config = get_config()
+            model_name = config.get(ConfigKeys.EMBEDDING_MODEL)
+            if not model_name:
+                logger.error("Embedding model not configured in database")
+                return None
+                
+        # Try to find existing embedding (to avoid duplicates)
+        existing_embedding = crud.embedding.get_by_content_and_model(
+            db, 
+            embedding=embedding_vector, 
+            model_name=model_name, 
+            model_version=model_version
+        )
+        
+        if existing_embedding:
+            logger.info(f"Found existing embedding with id: {existing_embedding.id}")
+            return existing_embedding.id
+        
+        # Create new embedding
+        new_embedding = crud.embedding.create_embedding(
+            db,
+            embedding=embedding_vector,
+            model_name=model_name,
+            model_version=model_version
+        )
+        
+        logger.info(f"Created new embedding with id: {new_embedding.id}")
+        return new_embedding.id
+        
+    except Exception as e:
+        logger.error(f"Failed to get or create embedding: {e}")
         return None
 
 @app.post("/api/login", response_model=LoginResponse)
@@ -702,24 +748,39 @@ async def create_topic(request: TopicRequest, username: str = Depends(verify_tok
     if existing_topic:
         raise HTTPException(status_code=400, detail="Topic with this name already exists")
     
-    # Generate embedding for the topic
-    try:
-        topic_embedding = generate_topic_embedding(request.name)
-        logger.info(f"Generated embedding for topic '{request.name}'")
-    except Exception as e:
-        logger.error(f"Failed to generate embedding for topic '{request.name}': {e}")
-        # Continue without embedding if generation fails
-        topic_embedding = None
-    
-    # Create new topic with embedding
+    # Create the topic first (without embeddings)
     topic_data = {
         "user_id": user.id,
         "name": request.name,
-        "topic_vector": topic_embedding,
         "is_active": request.active
     }
     
     new_topic = crud.topic.create(db, obj_in=topic_data)
+    
+    # Generate embedding and create association
+    embedding_created = False
+    try:
+        topic_embedding = generate_topic_embedding(request.name)
+        if topic_embedding:
+            # Get or create the embedding record
+            embedding_id = get_or_create_embedding(
+                db, 
+                embedding_vector=topic_embedding
+            )
+            
+            if embedding_id:
+                # Create topic-embedding association
+                crud.topic_embedding.create_association(
+                    db,
+                    topic_id=new_topic.id,
+                    embedding_id=embedding_id
+                )
+                embedding_created = True
+                logger.info(f"Successfully created topic embedding association for '{request.name}'")
+        
+    except Exception as e:
+        logger.error(f"Failed to create embedding for topic '{request.name}': {e}")
+        # Continue without embedding
     
     # Trigger article processing for the new topic if embedding was generated
     if topic_embedding:
@@ -782,28 +843,45 @@ async def update_topic(topic_id: int, request: TopicRequest, username: str = Dep
         if name_conflict:
             raise HTTPException(status_code=400, detail="Topic with this name already exists")
     
-    # Generate new embedding if topic name changed
-    topic_embedding = existing_topic.topic_vector
-    if request.name != existing_topic.name:
-        try:
-            topic_embedding = generate_topic_embedding(request.name)
-            logger.info(f"Generated new embedding for updated topic '{request.name}'")
-        except Exception as e:
-            logger.error(f"Failed to generate embedding for updated topic '{request.name}': {e}")
-            # Keep existing embedding if generation fails
-    
-    # Update topic data
+    # Update topic data first
     update_data = {
         "name": request.name,
-        "topic_vector": topic_embedding,
         "is_active": request.active
     }
     
     updated_topic = crud.topic.update(db, db_obj=existing_topic, obj_in=update_data)
     
+    # Generate new embedding and update associations if topic name changed
+    embedding_updated = False
+    if request.name != existing_topic.name:
+        try:
+            topic_embedding = generate_topic_embedding(request.name)
+            if topic_embedding:
+                # Remove old topic-embedding associations
+                crud.topic_embedding.remove_topic_embeddings(db, topic_id=updated_topic.id)
+                
+                # Get or create the new embedding record
+                embedding_id = get_or_create_embedding(
+                    db,
+                    embedding_vector=topic_embedding
+                )
+                
+                if embedding_id:
+                    # Create new topic-embedding association
+                    crud.topic_embedding.create_association(
+                        db,
+                        topic_id=updated_topic.id,
+                        embedding_id=embedding_id
+                    )
+                    embedding_updated = True
+                    logger.info(f"Generated new embedding for updated topic '{request.name}'")
+        except Exception as e:
+            logger.error(f"Failed to generate embedding for updated topic '{request.name}': {e}")
+            # Continue without updating embedding
+    
     return TopicCreateResponse(
         id=updated_topic.id,
-        message=f"Topic updated successfully{' with new embedding' if request.name != existing_topic.name and topic_embedding else ''}"
+        message=f"Topic updated successfully{' with new embedding' if embedding_updated else ''}"
     )
 
 @app.delete("/api/topics/{topic_id}")
@@ -1418,6 +1496,27 @@ async def update_feed_fetch_status(
     
     return {"message": "Feed status updated successfully", "feed_id": feed.id}
 
+@app.post("/api/internal/feeds/{feed_id}/update-title")
+async def update_feed_title_if_empty(
+    feed_id: int,
+    title_data: dict,
+    db = Depends(get_session)
+):
+    """Internal API for scraper: Update RSS feed title if it's empty."""
+    
+    title = title_data.get("title", "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+    
+    updated_feed = crud.rss_feed.update_title_if_empty(
+        db, feed_id=feed_id, title=title
+    )
+    
+    if updated_feed:
+        return {"message": "Feed title updated successfully", "feed_id": feed_id, "title": title}
+    else:
+        return {"message": "Feed title was not updated (feed not found or already has title)", "feed_id": feed_id}
+
 @app.post("/api/internal/fetch-records")
 async def create_or_update_fetch_record(
     fetch_data: dict,
@@ -1567,13 +1666,46 @@ async def create_articles(
 
 @app.get("/api/internal/articles/pending-processing")
 async def get_articles_pending_processing(
-    limit: int = 50,
+    limit: Optional[int] = None,
     db = Depends(get_session)
 ):
     """Internal API for postprocess: Get articles that need AI processing."""
     
-    # Get pending articles from database
-    articles = crud.rss_item.get_pending_processing(db, limit=limit)
+    # Get batch processing configuration from database
+    from newsfrontier_lib.config_service import get_config
+    config_service = get_config()
+    
+    # Use configured batch size if limit not provided
+    if limit is None:
+        batch_enabled = config_service.get('batch_processing_enabled', True)
+        if batch_enabled:
+            limit = config_service.get('batch_processing_size', 20)
+        else:
+            limit = 1  # Process one at a time if batch disabled
+    
+    # Get max article age setting
+    max_age_days = None
+    try:
+        max_age_days = int(config_service.get('max_article_age_days', 7))
+        logger.info(f"Using max article age: {max_age_days} days")
+    except (ValueError, TypeError):
+        logger.warning("Invalid max_article_age_days setting, no age filtering will be applied")
+    
+    # Get pending articles from database with age filtering
+    articles = crud.rss_item.get_pending_processing(db, limit=limit, max_age_days=max_age_days)
+    
+    # Log article age filtering statistics
+    if max_age_days is not None:
+        # Get total count without age filtering for comparison
+        total_without_age_filter = len(crud.rss_item.get_pending_processing(db, limit=limit, max_age_days=None))
+        filtered_count = len(articles)
+        skipped_count = total_without_age_filter - filtered_count
+        
+        if skipped_count > 0:
+            logger.info(f"Article age filtering: {filtered_count} articles selected, {skipped_count} articles skipped (older than {max_age_days} days)")
+        else:
+            logger.info(f"Article age filtering: {filtered_count} articles selected, no articles skipped")
+    
     return [
         {
             "id": article.id,
@@ -1604,6 +1736,7 @@ async def update_article_processing_status(
     title_embedding = status_data.title_embedding
     embedding_model = status_data.embedding_model
     summary = status_data.summary
+    clean_text = status_data.clean_text
     summary_model = status_data.summary_model
     processed_at = status_data.processed_at
     error_message = status_data.error_message
@@ -1634,6 +1767,7 @@ async def update_article_processing_status(
         derivative_data = {
             "rss_item_id": article_id,
             "summary": summary,
+            "clean_text": clean_text,
             "title_embedding": title_embedding,
             "summary_embedding": title_embedding,  # Use same embedding for both for now
             "processing_status": "completed" if summary else "processing",
@@ -1675,6 +1809,120 @@ async def update_article_processing_status(
         response_data["summary_length"] = len(summary) if summary else 0
         
     return response_data
+
+@app.post("/api/internal/articles/batch-process")
+async def batch_update_article_processing_status(
+    batch_data: BatchArticleProcessingUpdate,
+    db = Depends(get_session)
+):
+    """Internal API for postprocess: Batch update multiple articles processing status."""
+    
+    results = []
+    successful_updates = 0
+    failed_updates = 0
+    
+    for update_data in batch_data.updates:
+        try:
+            article_id = update_data.get("article_id")
+            if not article_id:
+                results.append({
+                    "article_id": None,
+                    "status": "error",
+                    "error": "Missing article_id"
+                })
+                failed_updates += 1
+                continue
+                
+            # Check if article exists
+            article = crud.rss_item.get(db, article_id)
+            if not article:
+                results.append({
+                    "article_id": article_id,
+                    "status": "error", 
+                    "error": "Article not found"
+                })
+                failed_updates += 1
+                continue
+            
+            # Extract processing data
+            title_embedding = update_data.get("title_embedding")
+            embedding_model = update_data.get("embedding_model")
+            summary = update_data.get("summary")
+            clean_text = update_data.get("clean_text")
+            summary_model = update_data.get("summary_model")
+            error_message = update_data.get("error_message")
+            
+            # Determine processing status
+            if title_embedding or summary:
+                status = "completed"
+            elif error_message:
+                status = "failed"
+            else:
+                status = update_data.get("status", "failed")
+            
+            # Update article processing status
+            article = crud.rss_item.update_processing_status(
+                db, item_id=article_id, status=status, error_message=error_message
+            )
+            
+            # Store derivatives if provided
+            if title_embedding or summary:
+                from newsfrontier_lib.models import RSSItemDerivative
+                
+                # Check if derivative already exists
+                existing_derivative = db.query(RSSItemDerivative).filter(
+                    RSSItemDerivative.rss_item_id == article_id
+                ).first()
+                
+                derivative_data = {
+                    "rss_item_id": article_id,
+                    "summary": summary,
+                    "clean_text": clean_text,
+                    "title_embedding": title_embedding,
+                    "summary_embedding": title_embedding,  # Use same embedding for both for now
+                    "processing_status": "completed" if summary else "processing",
+                    "summary_generated_at": datetime.utcnow() if summary else None,
+                    "embeddings_generated_at": datetime.utcnow() if title_embedding else None,
+                    "llm_model_version": summary_model,
+                    "embedding_model_version": embedding_model
+                }
+                
+                if existing_derivative:
+                    # Update existing derivative
+                    for field, value in derivative_data.items():
+                        if field != "rss_item_id" and value is not None:
+                            setattr(existing_derivative, field, value)
+                else:
+                    # Create new derivative
+                    derivative = RSSItemDerivative(**derivative_data)
+                    db.add(derivative)
+                
+                db.commit()
+            
+            results.append({
+                "article_id": article_id,
+                "status": "success",
+                "processing_status": status
+            })
+            successful_updates += 1
+            
+        except Exception as e:
+            results.append({
+                "article_id": update_data.get("article_id"),
+                "status": "error",
+                "error": str(e)
+            })
+            failed_updates += 1
+            db.rollback()  # Rollback failed individual update
+    
+    return {
+        "message": f"Batch processing completed: {successful_updates} successful, {failed_updates} failed",
+        "successful_updates": successful_updates,
+        "failed_updates": failed_updates,
+        "total_updates": len(batch_data.updates),
+        "results": results,
+        "processed_at": batch_data.processed_at or datetime.utcnow().isoformat()
+    }
 
 @app.post("/api/internal/articles/{article_id}/derivatives")
 async def create_article_derivatives(
@@ -1782,9 +2030,10 @@ async def get_all_topics_internal(
             "updated_at": topic.updated_at.isoformat() if topic.updated_at else None
         }
         
-        # Include topic vector (embedding) if available
-        if hasattr(topic, 'topic_vector') and topic.topic_vector is not None:
-            topic_data["topic_vector"] = topic.topic_vector.tolist()
+        # Get embeddings for this topic
+        topic_embeddings = crud.topic_embedding.get_embeddings_for_topic(db, topic_id=topic.id)
+        if topic_embeddings:
+            topic_data["topic_vectors"] = [embedding.embedding.tolist() if hasattr(embedding.embedding, 'tolist') else list(embedding.embedding) for embedding in topic_embeddings]
         
         result.append(topic_data)
     
@@ -1798,7 +2047,7 @@ async def find_similar_topics(
     """Internal API: Find topics similar to given embedding."""
     embedding = similarity_data.get("embedding")
     user_id = similarity_data.get("user_id")
-    threshold = similarity_data.get("threshold", 0.3)
+    threshold = similarity_data.get("threshold", 0.62)
     
     if not embedding:
         raise HTTPException(status_code=400, detail="Embedding is required")
@@ -1816,19 +2065,23 @@ async def find_similar_topics(
     
     similar_topics = []
     for topic in topics:
-        if hasattr(topic, 'topic_vector') and topic.topic_vector is not None:
-            # Calculate cosine similarity
-            topic_vec = topic.topic_vector
+        best_similarity = 0.0
+        
+        # Get embeddings for this topic
+        topic_embeddings = crud.topic_embedding.get_embeddings_for_topic(db, topic_id=topic.id)
+        for topic_embedding in topic_embeddings:
+            topic_vec = topic_embedding.embedding
             similarity = np.dot(embedding, topic_vec) / (np.linalg.norm(embedding) * np.linalg.norm(topic_vec))
-            
-            if similarity >= threshold:
-                similar_topics.append({
-                    "id": topic.id,
-                    "name": topic.name,
-                    "user_id": topic.user_id,
-                    "similarity": float(similarity),
-                    "is_active": topic.is_active
-                })
+            best_similarity = max(best_similarity, similarity)
+        
+        if best_similarity >= threshold:
+            similar_topics.append({
+                "id": topic.id,
+                "name": topic.name,
+                "user_id": topic.user_id,
+                "similarity": float(best_similarity),
+                "is_active": topic.is_active
+            })
     
     # Sort by similarity (highest first)
     similar_topics.sort(key=lambda x: x["similarity"], reverse=True)
@@ -1987,10 +2240,29 @@ async def create_article_topic(
         topic_id=topic_id
     )
     if existing:
-        raise HTTPException(
-            status_code=409, 
-            detail="Article-topic relationship already exists"
-        )
+        # Update relevance score if provided and different
+        if article_topic_data.relevance_score != existing.relevance_score:
+            updated = crud.article_topic.update(
+                db,
+                db_obj=existing,
+                obj_in={"relevance_score": article_topic_data.relevance_score}
+            )
+            return {
+                "message": "Article-topic relationship updated successfully",
+                "rss_item_id": updated.rss_item_id,
+                "topic_id": updated.topic_id,
+                "relevance_score": updated.relevance_score,
+                "created_at": updated.created_at.isoformat(),
+                "updated_at": updated.updated_at.isoformat()
+            }
+        else:
+            return {
+                "message": "Article-topic relationship already exists with same relevance score",
+                "rss_item_id": existing.rss_item_id,
+                "topic_id": existing.topic_id,
+                "relevance_score": existing.relevance_score,
+                "created_at": existing.created_at.isoformat()
+            }
     
     # Create article-topic relationship
     relevance_score = article_topic_data.relevance_score
@@ -2044,21 +2316,25 @@ async def get_events_internal(
     
     events = query.order_by(Event.updated_at.desc()).all()
     
-    return [
-        {
+    result = []
+    for event in events:
+        # Get embeddings for each event
+        event_embeddings = crud.event_embedding.get_embeddings_for_event(db, event_id=event.id)
+        
+        result.append({
             "id": event.id,
             "user_id": event.user_id,
             "topic_id": event.topic_id,
             "title": event.title,
             "description": event.description,
             "event_description": event.event_description,
-            "event_embedding": event.event_embedding.tolist() if event.event_embedding is not None else None,
+            "event_embeddings": [embedding.embedding.tolist() if hasattr(embedding.embedding, 'tolist') else list(embedding.embedding) for embedding in event_embeddings],
             "created_at": event.created_at.isoformat(),
             "updated_at": event.updated_at.isoformat(),
             "last_updated_at": event.last_updated_at.isoformat()
-        }
-        for event in events
-    ]
+        })
+    
+    return result
 
 @app.post("/api/internal/events")
 async def create_event_internal(
@@ -2082,27 +2358,44 @@ async def create_event_internal(
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
     
-    # Generate embedding for event_description if provided
-    event_embedding = None
-    if event_data.event_description:
-        try:
-            from newsfrontier_lib import generate_content_embedding
-            event_embedding = generate_content_embedding(title, event_data.event_description)
-            event_embedding = event_embedding.tolist() if hasattr(event_embedding, 'tolist') else event_embedding
-        except Exception as e:
-            logger.error(f"Failed to generate event embedding: {e}")
-    
-    # Create event
+    # Create event without embedding first
     event_create_data = {
         "user_id": user_id,
         "topic_id": topic_id,
         "title": title,
         "description": event_data.description,
-        "event_description": event_data.event_description,
-        "event_embedding": event_embedding
+        "event_description": event_data.event_description
     }
     
     event = crud.event.create(db, obj_in=event_create_data)
+    
+    # Generate embedding for event_description if provided
+    embedding_created = False
+    if event_data.event_description:
+        try:
+            from newsfrontier_lib import generate_content_embedding
+            event_embedding = generate_content_embedding(title, event_data.event_description)
+            if event_embedding is not None:
+                # Get or create the embedding record
+                embedding_id = get_or_create_embedding(
+                    db,
+                    embedding_vector=event_embedding
+                )
+                
+                if embedding_id:
+                    # Create event-embedding association
+                    crud.event_embedding.create_association(
+                        db,
+                        event_id=event.id,
+                        embedding_id=embedding_id
+                    )
+                    embedding_created = True
+                    logger.info(f"Successfully created event embedding association for '{title}'")
+        except Exception as e:
+            logger.error(f"Failed to generate event embedding: {e}")
+    
+    # Get embeddings for this event
+    event_embeddings = crud.event_embedding.get_embeddings_for_event(db, event_id=event.id)
     
     return {
         "id": event.id,
@@ -2111,7 +2404,7 @@ async def create_event_internal(
         "title": event.title,
         "description": event.description,
         "event_description": event.event_description,
-        "event_embedding": event.event_embedding.tolist() if event.event_embedding is not None else None,
+        "event_embeddings": [embedding.embedding.tolist() if hasattr(embedding.embedding, 'tolist') else list(embedding.embedding) for embedding in event_embeddings],
         "created_at": event.created_at.isoformat(),
         "updated_at": event.updated_at.isoformat(),
         "last_updated_at": event.last_updated_at.isoformat()
@@ -2426,6 +2719,22 @@ async def get_system_setting_internal(setting_key: str, db = Depends(get_session
         logger.error(f"Error getting system setting '{setting_key}': {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+# Public System Settings API (for non-admin users)
+@app.get("/api/public/system-settings")
+async def get_public_system_settings(db = Depends(get_session)):
+    """Get public system settings (accessible to all authenticated users)."""
+    # Get only public settings
+    public_settings = crud.system_setting.get_public_settings(db)
+    
+    return [
+        {
+            "setting_key": setting.setting_key,
+            "setting_value": setting.setting_value,
+            "setting_type": setting.setting_type
+        }
+        for setting in public_settings
+    ]
+
 # Admin System Settings API
 @app.get("/api/admin/system-settings", response_model=List[SystemSettingResponse])
 async def get_system_settings(admin_user = Depends(verify_admin), db = Depends(get_session)):
@@ -2439,7 +2748,7 @@ async def get_system_settings(admin_user = Depends(verify_admin), db = Depends(g
         SystemSettingResponse(
             id=setting.id,
             setting_key=setting.setting_key,
-            setting_value=setting.setting_value,
+            setting_value="encrypted" if setting.setting_key.endswith('_encrypted') else setting.setting_value,
             setting_type=setting.setting_type,
             description=setting.description,
             is_public=setting.is_public,

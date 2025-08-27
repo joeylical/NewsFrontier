@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { apiClient } from '@/lib/api-client';
+import { API_ENDPOINTS } from '@/lib/constants';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function LoginPage() {
@@ -21,7 +23,31 @@ export default function LoginPage() {
 
     try {
       await login(username, password);
-      router.push('/dashboard');
+      
+      // Get user info to check if they're admin
+      const userInfo = await apiClient.get<{is_admin: boolean}>(API_ENDPOINTS.AUTH.USER_INFO);
+      
+      if (userInfo.is_admin) {
+        // Admin users go to settings
+        router.push('/dashboard/settings');
+      } else {
+        // Regular users: check daily summary setting
+        try {
+          const settings = await apiClient.get<Array<{setting_key: string; setting_value: string}>>(API_ENDPOINTS.PUBLIC.SETTINGS);
+          const dailySummaryEnabled = settings.find(s => s.setting_key === 'daily_summary_enabled')?.setting_value === 'true';
+          
+          // Redirect based on daily summary setting
+          if (dailySummaryEnabled) {
+            router.push('/dashboard'); // Go to daily summary page
+          } else {
+            router.push('/dashboard/topics'); // Skip daily summary, go to topics
+          }
+        } catch (settingsError) {
+          // If we can't fetch settings, fall back to topics page
+          console.warn('Could not fetch settings for redirect logic, using topics:', settingsError);
+          router.push('/dashboard/topics');
+        }
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Login failed');
     } finally {

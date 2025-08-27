@@ -15,11 +15,17 @@ from typing import Dict, Any, Optional, List
 
 # Import LLM functionality from shared library
 try:
-    from newsfrontier_lib import get_llm_client
+    from newsfrontier_lib.llm_client_new import get_enhanced_llm_client
+    from newsfrontier_lib.multi_stage_generator import MultiStageGenerator
+    from newsfrontier_lib.clustering_chains import (
+        create_clustering_detection_chain, create_event_similarity_chain,
+        create_simple_clustering_chain, create_event_naming_chain
+    )
+    from newsfrontier_lib.config_service import get_config, ConfigKeys
     logger = logging.getLogger(__name__)
 except ImportError as e:
     logger = logging.getLogger(__name__)
-    logger.error(f"Failed to import LLM library: {e}")
+    logger.error(f"Failed to import enhanced LLM library: {e}")
     raise
 
 
@@ -38,7 +44,7 @@ class ClusteringService:
     - Article-event association management
     """
     
-    def __init__(self, prompt_manager, similarity_calculator, backend_client, cluster_threshold: float = 0.7):
+    def __init__(self, prompt_manager, similarity_calculator, backend_client, cluster_threshold: float = 0.75):
         """
         Initialize the clustering service.
         
@@ -52,8 +58,26 @@ class ClusteringService:
         self.similarity_calculator = similarity_calculator
         self.backend_client = backend_client
         self.cluster_threshold = cluster_threshold
-        self.llm_client = get_llm_client()
+        self.llm_client = get_enhanced_llm_client()
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        
+        # Initialize multi-stage generator
+        try:
+            self.config_service = get_config()
+            self.multi_stage_generator = MultiStageGenerator(self.llm_client, self.config_service)
+            
+            # Register clustering chains
+            self.multi_stage_generator.register_chain(create_clustering_detection_chain())
+            self.multi_stage_generator.register_chain(create_event_similarity_chain())
+            self.multi_stage_generator.register_chain(create_simple_clustering_chain())
+            self.multi_stage_generator.register_chain(create_event_naming_chain())
+            
+            self.use_multi_stage = self.config_service.get(ConfigKeys.MULTI_STAGE_CLUSTERING_ENABLED, default=True)
+            self.logger.info("Multi-stage clustering initialized successfully")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize multi-stage clustering, falling back to simple method: {e}")
+            self.use_multi_stage = False
+            self.multi_stage_generator = None
         
         self.logger.info(f"Initialized clustering service with threshold: {cluster_threshold}")
     
@@ -184,6 +208,90 @@ class ClusteringService:
             Event cluster (new or existing) or None if failed
         """
         try:
+            # Try multi-stage generation first
+            if self.use_multi_stage and self.multi_stage_generator:
+                try:
+                    return self._create_multi_stage_cluster(
+                        user_id, topic_id, topic_name, article_title, 
+                        article_summary, existing_events
+                    )
+                except Exception as e:
+                    self.logger.warning(f"Multi-stage clustering failed, falling back to simple method: {e}")
+            
+            # Fallback to simple method
+            return self._create_simple_cluster(
+                user_id, topic_id, topic_name, article_title, 
+                article_summary, existing_events
+            )
+            
+        except ValueError:
+            # Re-raise prompt errors
+            raise
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Failed to parse LLM response as JSON: {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error in LLM clustering analysis: {e}")
+            return None
+    
+    def _create_multi_stage_cluster(self,
+                                  user_id: int,
+                                  topic_id: int,
+                                  topic_name: str,
+                                  article_title: str,
+                                  article_summary: str,
+                                  existing_events: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Create cluster using multi-stage generation"""
+        try:
+            # Format existing events for context
+            events_context = self._format_events_for_llm(existing_events)
+            
+            # Prepare data for multi-stage processing
+            initial_data = {
+                "title": article_title,
+                "summary": article_summary,
+                "existing_events_context": events_context,
+                "existing_events_detailed": self._format_events_detailed(existing_events),
+                "topic_name": topic_name,
+                "user_id": user_id,
+                "topic_id": topic_id
+            }
+            
+            # Execute the clustering detection chain
+            result = self.multi_stage_generator.execute_chain("clustering_detection", initial_data)
+            
+            if result["success"]:
+                # Parse the result to extract event information
+                event_description = result["result"]
+                cluster_data = self._parse_event_description(event_description)
+                
+                if cluster_data:
+                    new_event = self._create_new_event_cluster(user_id, topic_id, cluster_data)
+                    if new_event:
+                        new_event['relevance_score'] = 1.0  # Perfect match for new cluster
+                        self.logger.info(f"Multi-stage clustering created new event: {cluster_data.get('title', 'Unknown')}")
+                        self.logger.debug(f"Execution log: {result['execution_log']}")
+                    return new_event
+                else:
+                    self.logger.error("Failed to parse multi-stage clustering result")
+                    return None
+            else:
+                self.logger.error(f"Multi-stage clustering failed: {result.get('error', 'Unknown error')}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Multi-stage clustering generation error: {e}")
+            raise
+    
+    def _create_simple_cluster(self,
+                             user_id: int,
+                             topic_id: int,
+                             topic_name: str,
+                             article_title: str,
+                             article_summary: str,
+                             existing_events: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Create cluster using simple/fallback method"""
+        try:
             # Format existing events for LLM context
             events_context = self._format_events_for_llm(existing_events)
             
@@ -235,16 +343,10 @@ class ClusteringService:
                 self.logger.info(f"Created new event cluster: {cluster_decision.get('title')}")
             
             return new_event
-            
-        except ValueError:
-            # Re-raise prompt errors
-            raise
-        except json.JSONDecodeError as e:
-            self.logger.error(f"Failed to parse LLM response as JSON: {e}")
-            return None
+                
         except Exception as e:
-            self.logger.error(f"Error in LLM clustering analysis: {e}")
-            return None
+            self.logger.error(f"Simple clustering generation error: {e}")
+            raise
     
     def _format_events_for_llm(self, events: List[Dict[str, Any]]) -> str:
         """
@@ -266,6 +368,126 @@ class ClusteringService:
                 events_list.append(f"  Description: {event['description']}")
         
         return "\n".join(events_list)
+    
+    def _format_events_detailed(self, events: List[Dict[str, Any]]) -> str:
+        """
+        Format existing events with detailed information for multi-stage processing.
+        
+        Args:
+            events: List of event dictionaries
+            
+        Returns:
+            Formatted string with detailed event information
+        """
+        if not events:
+            return "暂无相关事件"
+        
+        events_list = []
+        for i, event in enumerate(events, 1):
+            events_list.append(f"事件{i} (ID: {event['id']}): {event['title']}")
+            if event.get('description'):
+                events_list.append(f"  简要描述: {event['description']}")
+            if event.get('event_description'):
+                events_list.append(f"  详细描述: {event['event_description']}")
+        
+        return "\n".join(events_list)
+    
+    def _parse_event_description(self, event_description: str) -> Optional[Dict[str, str]]:
+        """
+        Parse multi-stage generation result to extract event information.
+        
+        Args:
+            event_description: Generated event description text
+            
+        Returns:
+            Dictionary with title, description, event_description or None if parsing failed
+        """
+        try:
+            # Try to extract event name and description from the generated text
+            lines = event_description.strip().split('\n')
+            
+            title = None
+            description = None
+            event_desc = None
+            
+            current_section = None
+            content_lines = []
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                if line.startswith('事件名称：') or line.startswith('事件名称:'):
+                    if current_section and content_lines:
+                        if current_section == 'title':
+                            title = '\n'.join(content_lines)
+                        elif current_section == 'description':
+                            description = '\n'.join(content_lines)
+                        elif current_section == 'event_description':
+                            event_desc = '\n'.join(content_lines)
+                    
+                    current_section = 'title'
+                    content_lines = [line.split('：', 1)[1] if '：' in line else line.split(':', 1)[1]]
+                elif line.startswith('事件描述：') or line.startswith('事件描述:'):
+                    if current_section and content_lines:
+                        if current_section == 'title':
+                            title = '\n'.join(content_lines)
+                        elif current_section == 'description':
+                            description = '\n'.join(content_lines)
+                    
+                    current_section = 'description'
+                    content_lines = [line.split('：', 1)[1] if '：' in line else line.split(':', 1)[1]]
+                else:
+                    if current_section:
+                        content_lines.append(line)
+                    else:
+                        # If no clear structure, treat entire text as event description
+                        event_desc = event_description
+                        break
+            
+            # Process the last section
+            if current_section and content_lines:
+                if current_section == 'title':
+                    title = '\n'.join(content_lines)
+                elif current_section == 'description':
+                    description = '\n'.join(content_lines)
+                elif current_section == 'event_description':
+                    event_desc = '\n'.join(content_lines)
+            
+            # Ensure we have at least a title
+            if not title and description:
+                title = description[:50] + "..." if len(description) > 50 else description
+            elif not title and event_desc:
+                title = event_desc[:50] + "..." if len(event_desc) > 50 else event_desc
+            elif not title:
+                title = "新事件"
+            
+            # Use description as event_description if event_description is not provided
+            if not event_desc and description:
+                event_desc = description
+            elif not event_desc:
+                event_desc = title
+            
+            # Use title as description if description is not provided
+            if not description:
+                description = title
+            
+            return {
+                'title': title.strip(),
+                'description': description.strip(),
+                'event_description': event_desc.strip()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error parsing event description: {e}")
+            # Fallback: use the entire text as title and description
+            text = event_description.strip()
+            return {
+                'title': text[:50] + "..." if len(text) > 50 else text,
+                'description': text,
+                'event_description': text
+            }
     
     def _create_new_event_cluster(self,
                                 user_id: int,

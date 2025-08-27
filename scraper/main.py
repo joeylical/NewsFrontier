@@ -22,16 +22,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
-# Import enhanced configuration and library
-try:
-    from newsfrontier_lib.config_service import get_config, ConfigKeys
-    from newsfrontier_lib.init_config import init_default_settings, test_encryption
-    logger.info("✅ Enhanced configuration library imported successfully")
-except ImportError as e:
-    logger.error(f"❌ Failed to import enhanced configuration: {e}")
-    sys.exit(1)
-
-# Configure logging
+# Configure logging first
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -41,6 +32,15 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Import enhanced configuration and library
+try:
+    from newsfrontier_lib.config_service import get_config, ConfigKeys
+    from newsfrontier_lib.init_config import init_default_settings, test_encryption
+    logger.info("✅ Enhanced configuration library imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import enhanced configuration: {e}")
+    sys.exit(1)
 
 class RSSScraperService:
     """RSS scraper service for fetching and processing RSS feeds."""
@@ -225,6 +225,14 @@ class RSSScraperService:
             return entry.category
         return None
         
+    def _extract_feed_title(self, parsed_feed) -> Optional[str]:
+        """Extract title from parsed RSS feed metadata."""
+        if hasattr(parsed_feed, 'feed'):
+            feed_info = parsed_feed.feed
+            if hasattr(feed_info, 'title') and feed_info.title:
+                return feed_info.title.strip()
+        return None
+        
     def update_feed_status(self, feed_id: int, status: str, fetch_time: datetime = None) -> bool:
         """Update feed fetch status via backend API."""
         try:
@@ -247,6 +255,25 @@ class RSSScraperService:
             
         except requests.RequestException as e:
             logger.error(f"Failed to update feed status: {e}")
+            return False
+    
+    def update_feed_title_if_empty(self, feed_id: int, title: str) -> bool:
+        """Update RSS feed title if it's currently empty via backend API."""
+        try:
+            data = {'title': title}
+            
+            response = requests.post(
+                f"{self.backend_url}/api/internal/feeds/{feed_id}/update-title",
+                json=data
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            logger.info(f"Feed title update result for {feed_id}: {result['message']}")
+            return True
+            
+        except requests.RequestException as e:
+            logger.error(f"Failed to update feed title: {e}")
             return False
             
     def create_fetch_record(self, feed_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -312,6 +339,15 @@ class RSSScraperService:
             if not feed_data:
                 self.update_feed_status(feed_id, 'failed')
                 return False
+            
+            # Extract and update RSS feed title if it's currently empty
+            if 'parsed_feed' in feed_data:
+                extracted_title = self._extract_feed_title(feed_data['parsed_feed'])
+                if extracted_title:
+                    # Only update if current title is empty or None
+                    if not feed.get('title') or feed.get('title', '').strip() == '':
+                        logger.info(f"Updating empty feed title for {feed_url} to: {extracted_title}")
+                        self.update_feed_title_if_empty(feed_id, extracted_title)
                 
             # Create or update RSS fetch record with raw content
             fetch_record_result = self.create_fetch_record(feed_data)

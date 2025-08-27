@@ -62,7 +62,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'default_llm_provider',
     displayName: 'Default API Provider',
     description: 'Default API provider for all LLM services',
-    category: 'Default API Configuration',
+    category: 'API & Models Configuration',
     type: 'string',
     options: ['openai', 'anthropic', 'google', 'azure', 'custom'],
     defaultValue: 'openai'
@@ -71,7 +71,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'default_llm_api_url',
     displayName: 'Default API Base URL',
     description: 'Default API endpoint URL (auto-filled based on provider)',
-    category: 'Default API Configuration',
+    category: 'API & Models Configuration',
     type: 'string',
     dependsOn: 'default_llm_provider',
     dependsValue: 'custom',
@@ -81,17 +81,17 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'default_llm_api_key_encrypted',
     displayName: 'Default API Key',
     description: 'Default API key for LLM services',
-    category: 'Default API Configuration',
+    category: 'API & Models Configuration',
     type: 'string',
     isEncrypted: true
   },
-  
+
   // ===== SUMMARY MODEL =====
   {
     key: 'llm_summary_model',
     displayName: 'Article Summary Model',
     description: 'Model name for article summaries (e.g. gpt-3.5-turbo, gemini-2.0-flash-lite)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'summary',
     defaultValue: 'gpt-3.5-turbo'
@@ -100,7 +100,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_summary_use_default',
     displayName: 'Use Default API',
     description: 'Use default API configuration for summary model',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'boolean',
     modelGroup: 'summary',
     defaultValue: 'true'
@@ -109,7 +109,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_summary_api_url',
     displayName: 'Custom API Base URL',
     description: 'Custom API endpoint for summary model (if not using default)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'summary',
     dependsOn: 'llm_summary_use_default',
@@ -119,7 +119,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_summary_api_key_encrypted',
     displayName: 'Custom API Key',
     description: 'Custom API key for summary model (if not using default)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'summary',
     dependsOn: 'llm_summary_use_default',
@@ -127,13 +127,13 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     isEncrypted: true,
     isSeparatorAfter: true
   },
-  
+
   // ===== ANALYSIS MODEL =====
   {
     key: 'llm_analysis_model',
     displayName: 'Analysis Model',
     description: 'Model name for analysis tasks (e.g. gpt-4, gemini-2.5-pro)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'analysis',
     defaultValue: 'gpt-4'
@@ -142,7 +142,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_analysis_use_default',
     displayName: 'Use Default API',
     description: 'Use default API configuration for analysis model',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'boolean',
     modelGroup: 'analysis',
     defaultValue: 'true'
@@ -151,7 +151,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_analysis_api_url',
     displayName: 'Custom API Base URL',
     description: 'Custom API endpoint for analysis model (if not using default)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'analysis',
     dependsOn: 'llm_analysis_use_default',
@@ -161,7 +161,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_analysis_api_key_encrypted',
     displayName: 'Custom API Key',
     description: 'Custom API key for analysis model (if not using default)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'analysis',
     dependsOn: 'llm_analysis_use_default',
@@ -169,13 +169,13 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     isEncrypted: true,
     isSeparatorAfter: true
   },
-  
+
   // ===== EMBEDDING MODEL =====
   {
     key: 'llm_embedding_model',
     displayName: 'Embedding Model',
     description: 'Model name for embeddings (e.g. text-embedding-ada-002, text-embedding-004)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'embedding',
     defaultValue: 'text-embedding-ada-002'
@@ -184,7 +184,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_embedding_use_default',
     displayName: 'Use Default API',
     description: 'Use default API configuration for embedding model',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'boolean',
     modelGroup: 'embedding',
     defaultValue: 'true'
@@ -193,7 +193,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_embedding_api_url',
     displayName: 'Custom API Base URL',
     description: 'Custom API endpoint for embedding model (if not using default)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'embedding',
     dependsOn: 'llm_embedding_use_default',
@@ -203,7 +203,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_embedding_api_key_encrypted',
     displayName: 'Custom API Key',
     description: 'Custom API key for embedding model (if not using default)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'embedding',
     dependsOn: 'llm_embedding_use_default',
@@ -211,13 +211,13 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     isEncrypted: true,
     isSeparatorAfter: true
   },
-  
+
   // ===== IMAGE MODEL =====
   {
     key: 'llm_image_model',
     displayName: 'Image Generation Model',
     description: 'Model name for image generation (e.g. dall-e-3, imagen-3.0-generate-002)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'image',
     defaultValue: 'dall-e-3'
@@ -226,7 +226,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_image_use_default',
     displayName: 'Use Default API',
     description: 'Use default API configuration for image model',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'boolean',
     modelGroup: 'image',
     defaultValue: 'true'
@@ -235,7 +235,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_image_api_url',
     displayName: 'Custom API Base URL',
     description: 'Custom API endpoint for image model (if not using default)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'image',
     dependsOn: 'llm_image_use_default',
@@ -245,7 +245,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     key: 'llm_image_api_key_encrypted',
     displayName: 'Custom API Key',
     description: 'Custom API key for image model (if not using default)',
-    category: 'AI & LLM Models',
+    category: 'API & Models Configuration',
     type: 'string',
     modelGroup: 'image',
     dependsOn: 'llm_image_use_default',
@@ -253,7 +253,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     isEncrypted: true,
     isSeparatorAfter: true
   },
-  
+
   // ===== AI FEATURES =====
   {
     key: 'daily_summary_enabled',
@@ -269,9 +269,11 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     description: 'Enable cover image generation for daily summaries',
     category: 'AI Features',
     type: 'boolean',
+    dependsOn: 'daily_summary_enabled',
+    dependsNotValue: 'false',
     defaultValue: 'true'
   },
-  
+
   // ===== AI PROMPTS =====
   {
     key: 'prompt_summary_creation',
@@ -309,7 +311,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     multiline: true,
     defaultValue: 'Create a compelling cover image description...'
   },
-  
+
   // ===== STORAGE =====
   {
     key: 's3_region',
@@ -350,7 +352,7 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     type: 'string',
     isEncrypted: true
   },
-  
+
   // ===== PROCESSING =====
   {
     key: 'scraper_interval_minutes',
@@ -373,14 +375,34 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     defaultValue: '30'
   },
   {
-    key: 'cluster_threshold',
-    displayName: 'Article Clustering Threshold',
-    description: 'Similarity threshold for clustering articles (0.1-1.0)',
+    key: 'max_article_age_days',
+    displayName: 'Maximum Article Age (days)',
+    description: 'Skip processing RSS items older than this many days (1-30 days)',
+    category: 'Processing',
+    type: 'integer',
+    minValue: 1,
+    maxValue: 30,
+    defaultValue: '7'
+  },
+  {
+    key: 'topic_similarity_threshold',
+    displayName: 'Topic Matching Threshold',
+    description: 'Similarity threshold for matching articles to topics (0.1-1.0)',
     category: 'Processing',
     type: 'float',
     minValue: 0.1,
     maxValue: 1.0,
-    defaultValue: '0.8'
+    defaultValue: '0.62'
+  },
+  {
+    key: 'cluster_threshold',
+    displayName: 'Article Clustering Threshold',
+    description: 'Similarity threshold for clustering articles into events (0.1-1.0)',
+    category: 'Processing',
+    type: 'float',
+    minValue: 0.1,
+    maxValue: 1.0,
+    defaultValue: '0.75'
   },
   {
     key: 'max_processing_attempts',
@@ -400,22 +422,46 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     type: 'string',
     options: ['768', '1536', '3072'],
     defaultValue: '1536'
+  },
+  {
+    key: 'batch_processing_size',
+    displayName: 'Batch Processing Size',
+    description: 'Number of articles to process in a single batch (5-100)',
+    category: 'Processing',
+    type: 'integer',
+    minValue: 5,
+    maxValue: 100,
+    defaultValue: '20'
+  },
+  {
+    key: 'batch_processing_enabled',
+    displayName: 'Enable Batch Processing',
+    description: 'Process multiple articles simultaneously for better performance',
+    category: 'Processing',
+    type: 'boolean',
+    defaultValue: 'true'
   }
 ];
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  
+
   // Define tab configuration first
   const settingTabs = [
-    { id: 'default-api', label: 'Default API', icon: '🔑', category: 'Default API Configuration' },
-    { id: 'ai-models', label: 'AI Models', icon: '🤖', category: 'AI & LLM Models' },
+    { id: 'api-models', label: 'API & Models', icon: '🤖', category: 'API & Models Configuration' },
     { id: 'ai-features', label: 'AI Features', icon: '⚡', category: 'AI Features' },
     { id: 'prompts', label: 'AI Prompts', icon: '💬', category: 'AI Prompts' },
     { id: 'storage', label: 'Storage', icon: '💾', category: 'Storage' },
     { id: 'processing', label: 'Processing', icon: '⚙️', category: 'Processing' }
   ];
-  
+
+  // User tab configuration
+  const userTabs = [
+    { id: 'preferences', label: 'Preferences', icon: '⚙️' },
+    { id: 'topics', label: 'Topics', icon: '📚' },
+    { id: 'rss-feeds', label: 'RSS Sources', icon: '📡' }
+  ];
+
   const [topics, setTopics] = useState<Topic[]>([]);
   const [rssFeeds, setRssFeeds] = useState<RSSFeed[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -433,7 +479,7 @@ export default function SettingsPage() {
     keywords: '',
     active: true
   });
-  
+
   // Feedback states
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isSavingSystem, setIsSavingSystem] = useState(false);
@@ -451,7 +497,10 @@ export default function SettingsPage() {
     daily_summary_prompt: ''
   });
   const [systemSettings, setSystemSettings] = useState<SystemSettingItem[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('default-api');
+  const [originalSystemSettings, setOriginalSystemSettings] = useState<SystemSettingItem[]>([]);
+  const [activeTab, setActiveTab] = useState<string>('api-models');
+  const [activeUserTab, setActiveUserTab] = useState<string>('preferences');
+  const [dailySummaryEnabled, setDailySummaryEnabled] = useState(false); // Default to false for security
 
   useEffect(() => {
     fetchData();
@@ -459,8 +508,34 @@ export default function SettingsPage() {
     if (user?.is_admin) {
       fetchSystemSettings();
     }
+    checkDailySummarySettings();
   }, [user?.is_admin]);
-  
+
+  const checkDailySummarySettings = async () => {
+    if (user && !user.is_admin) {
+      try {
+        const settings = await apiClient.get<Array<{setting_key: string; setting_value: string}>>(API_ENDPOINTS.PUBLIC.SETTINGS);
+        const enabled = settings.find(s => s.setting_key === 'daily_summary_enabled')?.setting_value === 'true';
+        setDailySummaryEnabled(enabled);
+      } catch (error) {
+        console.warn('Could not fetch daily summary settings:', error);
+        // Keep default value of false for security
+        setDailySummaryEnabled(false);
+      }
+    }
+    // For admin users, the setting will be checked in the useEffect when systemSettings loads
+  };
+
+  // Check daily summary settings when system settings are loaded (for admin users)
+  useEffect(() => {
+    if (user?.is_admin && systemSettings.length > 0) {
+      const setting = systemSettings.find(s => s.setting_key === 'daily_summary_enabled');
+      if (setting) {
+        setDailySummaryEnabled(setting.setting_value === 'true');
+      }
+    }
+  }, [user?.is_admin, systemSettings]);
+
   // Set initial tab based on URL hash or default
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
@@ -469,7 +544,7 @@ export default function SettingsPage() {
       setActiveTab(hash);
     }
   }, []);
-  
+
   // Update URL hash when tab changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -485,7 +560,7 @@ export default function SettingsPage() {
         // User's subscribed RSS feeds
         apiClient.get<RSSFeed[]>(API_ENDPOINTS.RSS_FEEDS.LIST).catch(() => [])
       ]);
-      
+
       setTopics(topicsData.topics || []);
       setRssFeeds(Array.isArray(rssData) ? rssData : []);
     } catch (err) {
@@ -535,6 +610,7 @@ export default function SettingsPage() {
     try {
       const response = await apiClient.get<SystemSettingItem[]>(API_ENDPOINTS.ADMIN.SETTINGS);
       setSystemSettings(response);
+      setOriginalSystemSettings(JSON.parse(JSON.stringify(response))); // Deep copy
     } catch (err) {
       console.error('Failed to load system settings:', err);
     }
@@ -551,6 +627,8 @@ export default function SettingsPage() {
         title: 'Success!',
         message: 'All system settings have been saved successfully.'
       });
+      // Update original settings to reflect saved state
+      setOriginalSystemSettings(JSON.parse(JSON.stringify(systemSettings)));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update system settings';
       setError(errorMessage);
@@ -565,12 +643,49 @@ export default function SettingsPage() {
     }
   };
 
+  // Check if settings have changes
+  const hasChanges = () => {
+    if (systemSettings.length !== originalSystemSettings.length) return true;
+
+    return systemSettings.some(setting => {
+      const original = originalSystemSettings.find(orig => orig.setting_key === setting.setting_key);
+      return !original || original.setting_value !== setting.setting_value;
+    });
+  };
+
+  // Get list of changed setting keys
+  const getChangedSettings = (): string[] => {
+    const changed: string[] = [];
+
+    systemSettings.forEach(setting => {
+      const original = originalSystemSettings.find(orig => orig.setting_key === setting.setting_key);
+      if (!original) {
+        changed.push(setting.setting_key); // New setting
+      } else if (original.setting_value !== setting.setting_value) {
+        changed.push(setting.setting_key); // Modified setting
+      }
+    });
+
+    return changed;
+  };
+
+  // Check if a specific setting has changed
+  const isSettingChanged = (key: string): boolean => {
+    const current = systemSettings.find(s => s.setting_key === key);
+    const original = originalSystemSettings.find(s => s.setting_key === key);
+
+    if (!current && !original) return false;
+    if (!current || !original) return true;
+
+    return current.setting_value !== original.setting_value;
+  };
+
   const updateSettingValue = (key: string, value: string) => {
     setSystemSettings(prev => {
       const existingSetting = prev.find(s => s.setting_key === key);
       if (existingSetting) {
-        return prev.map(setting => 
-          setting.setting_key === key 
+        return prev.map(setting =>
+          setting.setting_key === key
             ? { ...setting, setting_value: value }
             : setting
         );
@@ -592,10 +707,11 @@ export default function SettingsPage() {
 
   // Get static definitions for use in component
   const staticDefinitions = createStaticSettingDefinitions();
-  
+
   // Get current tab info
   const currentTab = settingTabs.find(tab => tab.id === activeTab) || settingTabs[0];
-  
+  const currentUserTab = userTabs.find(tab => tab.id === activeUserTab) || userTabs[0];
+
   // Get display name from static definitions or format from key
   const getDisplayName = (key: string) => {
     const staticDef = staticDefinitions.find(d => d.key === key);
@@ -609,7 +725,7 @@ export default function SettingsPage() {
   const getCurrentTabSettings = () => {
     const currentCategory = currentTab.category;
     const categorySettings: { definition: StaticSettingDefinition; setting: SystemSettingItem }[] = [];
-    
+
     staticDefinitions.forEach(staticDef => {
       if (staticDef.category === currentCategory) {
         // Find corresponding system setting or create placeholder
@@ -618,34 +734,34 @@ export default function SettingsPage() {
           setting_value: staticDef.defaultValue || '',
           setting_type: staticDef.type
         };
-        
+
         categorySettings.push({
           definition: staticDef,
           setting: systemSetting
         });
       }
     });
-    
+
     return categorySettings;
   };
 
   // Check if a setting should be visible based on dependencies
   const isSettingVisible = (definition: StaticSettingDefinition): boolean => {
     if (!definition.dependsOn) return true;
-    
+
     const dependentSetting = systemSettings.find(s => s.setting_key === definition.dependsOn);
     const dependentValue = dependentSetting?.setting_value || '';
-    
+
     if (definition.dependsValue) {
       return dependentValue === definition.dependsValue;
     }
     if (definition.dependsNotValue) {
       return dependentValue !== definition.dependsNotValue;
     }
-    
+
     return true;
   };
-  
+
   // Get provider URLs for auto-completion
   const [providerUrls, setProviderUrls] = useState<ProviderUrls>({
     openai: 'https://api.openai.com/v1',
@@ -654,11 +770,11 @@ export default function SettingsPage() {
     azure: 'https://YOUR_RESOURCE.openai.azure.com',
     custom: ''
   });
-  
+
   // Auto-update API URLs based on provider selection
   const handleProviderChange = (key: string, provider: string) => {
     updateSettingValue(key, provider);
-    
+
     // Auto-update corresponding API URL if it's the default provider setting
     if (key === 'default_llm_provider') {
       const urlSetting = systemSettings.find(s => s.setting_key === 'default_llm_api_url');
@@ -667,11 +783,15 @@ export default function SettingsPage() {
       }
     }
   };
-  
+
   const renderSettingInput = (definition: StaticSettingDefinition, setting: SystemSettingItem) => {
-    const baseClasses = "w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500";
+    const isChanged = isSettingChanged(definition.key);
+    const baseClasses = `w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 ${isChanged
+        ? 'border-amber-400 bg-amber-50 focus:ring-amber-500'
+        : 'border-gray-300 focus:ring-blue-500'
+      }`;
     const value = setting.setting_value || '';
-    
+
     // Handle encrypted fields
     if (definition.isEncrypted) {
       const isPlaceholder = value === '<encrypted>';
@@ -685,7 +805,7 @@ export default function SettingsPage() {
         />
       );
     }
-    
+
     switch (definition.type) {
       case 'boolean':
         return (
@@ -702,7 +822,7 @@ export default function SettingsPage() {
             </label>
           </div>
         );
-      
+
       case 'integer':
         return (
           <input
@@ -716,7 +836,7 @@ export default function SettingsPage() {
             placeholder={definition.defaultValue}
           />
         );
-      
+
       case 'float':
         return (
           <input
@@ -730,7 +850,7 @@ export default function SettingsPage() {
             placeholder={definition.defaultValue}
           />
         );
-      
+
       case 'string':
       default:
         // Handle dropdown options
@@ -755,7 +875,7 @@ export default function SettingsPage() {
             </select>
           );
         }
-        
+
         // Multi-line textarea for prompts or long descriptions
         if (definition.multiline || definition.key.includes('prompt')) {
           return (
@@ -768,7 +888,7 @@ export default function SettingsPage() {
             />
           );
         }
-        
+
         // Regular text input
         return (
           <input
@@ -855,7 +975,7 @@ export default function SettingsPage() {
       fetchProviderUrls();
     }
   }, [user?.is_admin]);
-  
+
   // RSS Feed management functions
   const handleRSSSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -908,18 +1028,216 @@ export default function SettingsPage() {
     setEditingRSSFeed(null);
     setRSSForm({ url: '', title: '' });
   };
-  
+
   // Get description for each tab
   const getTabDescription = (tabId: string): string => {
     const descriptions = {
-      'default-api': 'Configure the default API provider and credentials used across all AI services',
-      'ai-models': 'Set up specific models for different AI tasks with custom API configurations',
+      'api-models': 'Configure API providers, credentials, and model settings for all AI services',
       'ai-features': 'Enable or disable AI-powered features like daily summaries and cover images',
       'prompts': 'Customize AI prompts used for content generation and analysis',
       'storage': 'Configure S3 storage settings for images and file uploads',
       'processing': 'Adjust processing intervals, thresholds, and system performance parameters'
     };
     return descriptions[tabId as keyof typeof descriptions] || 'Configure system settings';
+  };
+
+  // Get description for user tabs
+  const getUserTabDescription = (tabId: string): string => {
+    const descriptions = {
+      'preferences': 'Customize your personal preferences and daily summary settings',
+      'topics': 'Manage your news topics and keywords for personalized content',
+      'rss-feeds': 'Configure your personal RSS feed sources and subscriptions'
+    };
+    return descriptions[tabId as keyof typeof descriptions] || 'Manage your settings';
+  };
+
+  // Render user tab content
+  const renderUserTabContent = () => {
+    switch (activeUserTab) {
+      case 'preferences':
+        return (
+          <div className="space-y-6">
+            {dailySummaryEnabled ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Daily Summary Prompt
+                </label>
+                <textarea
+                  value={userSettings.daily_summary_prompt}
+                  onChange={(e) => setUserSettings({ ...userSettings, daily_summary_prompt: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={4}
+                  placeholder="Enter your custom prompt for daily news summaries (optional)"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  This prompt will be used to customize your daily news summaries. Leave empty to use the default prompt.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                <p className="text-gray-600 text-sm">
+                  Daily Summary feature is currently disabled. Contact your administrator to enable this feature.
+                </p>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'topics':
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h4 className="text-lg font-medium text-gray-900">Your Topics</h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  Manage topics to personalize your news feed
+                </p>
+              </div>
+              <button
+                onClick={() => openTopicModal()}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Add Topic
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {topics.length > 0 ? (
+                topics.map((topic) => (
+                  <div key={topic.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h5 className="font-medium text-gray-900">{topic.name}</h5>
+                          <span className={`px-2 py-1 text-xs rounded-full ${topic.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                            {topic.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {topic.keywords.map((keyword, index) => (
+                            <span key={index} className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <button
+                          onClick={() => openTopicModal(topic)}
+                          className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTopic(topic.id)}
+                          className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-4">📚</div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">No Topics Yet</h4>
+                  <p className="text-gray-600 mb-4">Create your first topic to start personalizing your news feed</p>
+                  <button
+                    onClick={() => openTopicModal()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                    Add Your First Topic
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'rss-feeds':
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h4 className="text-lg font-medium text-gray-900">RSS Sources</h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  Manage your personal RSS feed subscriptions
+                </p>
+              </div>
+              <button
+                onClick={() => openRSSModal()}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+              >
+                Add RSS Feed
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {rssFeeds.length > 0 ? (
+                rssFeeds.map((feed) => (
+                  <div key={feed.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h5 className="font-medium text-gray-900">{feed.title || 'Untitled Feed'}</h5>
+                        <p className="text-sm text-gray-600 mt-1">{feed.url}</p>
+                        <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                          <span>Interval: {feed.fetch_interval_minutes}min</span>
+                          <span className={`px-2 py-1 rounded-full ${feed.last_fetch_status === 'success' ? 'bg-green-100 text-green-800' :
+                              feed.last_fetch_status === 'failed' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                            }`}>
+                            {feed.last_fetch_status}
+                          </span>
+                          {feed.last_fetch_at && (
+                            <span>Last fetch: {new Date(feed.last_fetch_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <button
+                          onClick={() => openRSSModal(feed)}
+                          className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRSSFeed(feed)}
+                          className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-4">📡</div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">No RSS Feeds</h4>
+                  <p className="text-gray-600 mb-4">Add RSS feeds to get news from your favorite sources</p>
+                  <button
+                    onClick={() => openRSSModal()}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                  >
+                    Add Your First RSS Feed
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      default:
+        return (
+          <div className="text-center py-12">
+            <div className="text-4xl mb-4">⚙️</div>
+            <h4 className="text-lg font-medium text-gray-900 mb-2">Settings</h4>
+            <p className="text-gray-600">Select a category from the sidebar to manage your settings.</p>
+          </div>
+        );
+    }
   };
 
   if (isLoading) {
@@ -936,8 +1254,8 @@ export default function SettingsPage() {
               {user?.is_admin ? 'System Settings' : 'Settings'}
             </h1>
             <p className="text-gray-600 mt-1">
-              {user?.is_admin 
-                ? 'Manage AI processing prompts and system configuration' 
+              {user?.is_admin
+                ? 'Manage AI processing prompts and system configuration'
                 : 'Manage your topics and preferences'
               }
             </p>
@@ -959,7 +1277,7 @@ export default function SettingsPage() {
       {error && (
         <div className="p-4 border border-red-300 rounded-lg text-red-700 bg-red-50">
           <p>{error}</p>
-          <button 
+          <button
             onClick={() => setError(null)}
             className="mt-2 text-sm underline"
           >
@@ -968,199 +1286,98 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* User Settings - Hidden for Admin Users */}
+
+
+      {/* User Settings (Non-Admin Users) */}
       {!user?.is_admin && (
         <div className="border border-gray-200 rounded-lg shadow-sm">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">User Preferences</h2>
+            <h2 className="text-lg font-semibold text-gray-900">User Settings</h2>
             <p className="text-sm text-gray-600 mt-1">
-              Customize your news experience and daily summaries
+              Customize your preferences and manage your content sources
             </p>
           </div>
-          
-          <div className="p-6">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Daily Summary Prompt
-                </label>
-                <textarea
-                  value={userSettings.daily_summary_prompt}
-                  onChange={(e) => setUserSettings({ ...userSettings, daily_summary_prompt: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="Enter your custom prompt for daily news summaries (optional)"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  This prompt will be used to customize your daily news summaries. Leave empty to use the default prompt.
-                </p>
-              </div>
-              
-              <div className="flex justify-end">
-                <button
-                  onClick={updateUserSettings}
-                  disabled={isSavingUser}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isSavingUser ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Preferences'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Topics Management - Hidden for Admin Users */}
-      {!user?.is_admin && (
-        <div className="border border-gray-200 rounded-lg shadow-sm">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Topics</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Manage your news topics and keywords
-                </p>
-              </div>
-              <button
-                onClick={() => openTopicModal()}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                Add Topic
-              </button>
-            </div>
-          </div>
-          
-          <div className="divide-y divide-gray-200">
-            {topics.length > 0 ? (
-              topics.map((topic) => (
-                <div key={topic.id} className="p-4 hover:bg-gray-50">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-gray-900">{topic.name}</h3>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          topic.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {topic.active ? 'Active' : 'Inactive'}
-                        </span>
+          {/* Tab Layout */}
+          <div className="flex">
+            {/* Left Sidebar - Tab Navigation */}
+            <div className="w-64 border-r border-gray-200 bg-gray-50 flex flex-col min-h-[600px]">
+              <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
+                {userTabs.map((tab) => {
+                  const isActive = activeUserTab === tab.id;
+
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveUserTab(tab.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-left rounded-md transition-colors ${isActive
+                          ? 'bg-blue-100 text-blue-900 border-l-4 border-blue-500'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                    >
+                      <span className="text-lg">{tab.icon}</span>
+                      <div className="flex-1 flex items-center justify-between">
+                        <span className="text-sm font-medium">{tab.label}</span>
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {topic.keywords.map((keyword, index) => (
-                          <span key={index} className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                            {keyword}
-                          </span>
-                        ))}
+                    </button>
+                  );
+                })}
+
+                {/* Save Button in Sidebar - at bottom */}
+                <div className="p-4 border-t border-gray-200">
+                  <button
+                    onClick={updateUserSettings}
+                    disabled={isSavingUser}
+                    className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-sm"
+                  >
+                    {isSavingUser ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Settings'
+                    )}
+                  </button>
+                </div>
+              </nav>
+            </div>
+
+            {/* Right Content Area */}
+            <div className="flex-1 min-h-[600px] overflow-y-auto">
+              <div className="p-6">
+                {currentUserTab ? (
+                  <>
+                    {/* Tab Header */}
+                    <div className="mb-6">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                            <span className="text-2xl">{currentUserTab.icon}</span>
+                            {currentUserTab.label}
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {getUserTabDescription(currentUserTab.id)}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => openTopicModal(topic)}
-                        className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTopic(topic.id)}
-                        className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
+
+                    {/* Tab Content */}
+                    <div className="space-y-6">
+                      {renderUserTabContent()}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading settings...</p>
                     </div>
                   </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-8 text-center text-gray-500">
-                <p>No topics configured yet.</p>
-                <button
-                  onClick={() => openTopicModal()}
-                  className="mt-2 text-blue-600 hover:text-blue-800 underline"
-                >
-                  Add your first topic
-                </button>
+                )}
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* User RSS Feeds Management - Hidden for Admin Users */}
-      {!user?.is_admin && (
-        <div className="border border-gray-200 rounded-lg shadow-sm">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">My RSS Sources</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Manage your personal RSS feed subscriptions
-                </p>
-              </div>
-              <button
-                onClick={() => openRSSModal()}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-              >
-                Add RSS Feed
-              </button>
             </div>
-          </div>
-          
-          <div className="divide-y divide-gray-200">
-            {rssFeeds.length > 0 ? (
-              rssFeeds.map((feed) => (
-                <div key={feed.id} className="p-4 hover:bg-gray-50">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{feed.title || 'Untitled Feed'}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{feed.url}</p>
-                      <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                        <span>Interval: {feed.fetch_interval_minutes}min</span>
-                        <span className={`px-2 py-1 rounded-full ${
-                          feed.last_fetch_status === 'success' ? 'bg-green-100 text-green-800' :
-                          feed.last_fetch_status === 'failed' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {feed.last_fetch_status}
-                        </span>
-                        {feed.last_fetch_at && (
-                          <span>Last fetch: {new Date(feed.last_fetch_at).toLocaleDateString()}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => openRSSModal(feed)}
-                        className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteRSSFeed(feed)}
-                        className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-8 text-center text-gray-500">
-                <p>No RSS feeds configured yet.</p>
-                <button
-                  onClick={() => openRSSModal()}
-                  className="mt-2 text-green-600 hover:text-green-800 underline"
-                >
-                  Add your first RSS feed
-                </button>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -1175,52 +1392,64 @@ export default function SettingsPage() {
               Configure system-wide parameters and AI processing settings (Admin only)
             </p>
           </div>
-          
+
           {/* Tab Layout */}
-          <div className="flex min-h-[600px]">
+          <div className="flex">
             {/* Left Sidebar - Tab Navigation */}
-            <div className="w-64 border-r border-gray-200 bg-gray-50 flex flex-col">
-              <nav className="p-4 space-y-1">
+            <div className="w-64 border-r border-gray-200 bg-gray-50 flex flex-col min-h-[600px]">
+              <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
                 {settingTabs.map((tab) => {
                   const isActive = activeTab === tab.id;
+                  // Check if this tab has any modified settings
+                  const tabSettings = staticDefinitions.filter(def => def.category === tab.category);
+                  const hasTabChanges = tabSettings.some(def => isSettingChanged(def.key));
+
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 text-left rounded-md transition-colors ${
-                        isActive
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-left rounded-md transition-colors ${isActive
                           ? 'bg-blue-100 text-blue-900 border-l-4 border-blue-500'
                           : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                      }`}
+                        }`}
                     >
                       <span className="text-lg">{tab.icon}</span>
-                      <span className="text-sm font-medium">{tab.label}</span>
+                      <div className="flex-1 flex items-center justify-between">
+                        <span className="text-sm font-medium">{tab.label}</span>
+                        {hasTabChanges && (
+                          <span className="w-2 h-2 bg-amber-400 rounded-full flex-shrink-0" title="This tab has modified settings"></span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
+
+                {/* Save Button in Sidebar - at bottom */}
+                <div className="p-4 border-t border-gray-200">
+                  <button
+                    onClick={updateSystemSettings}
+                    disabled={isSavingSystem || !hasChanges()}
+                    className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-sm"
+                  >
+                    {isSavingSystem ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Saving...
+                      </>
+                    ) : hasChanges() ? (
+                      <>
+                        Save Settings ({getChangedSettings().length})
+                      </>
+                    ) : (
+                      'No Changes'
+                    )}
+                  </button>
+                </div>
               </nav>
-              
-              {/* Save Button in Sidebar */}
-              <div className="p-4 border-t border-gray-200 mt-auto">
-                <button
-                  onClick={updateSystemSettings}
-                  disabled={isSavingSystem}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isSavingSystem ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Settings'
-                  )}
-                </button>
-              </div>
             </div>
-            
+
             {/* Right Content Area */}
-            <div className="flex-1">
+            <div className="flex-1 min-h-[600px] overflow-y-auto">
               <div className="p-6">
                 {currentTab ? (
                   <>
@@ -1240,93 +1469,108 @@ export default function SettingsPage() {
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             {getCurrentTabSettings().length} settings
                           </span>
+                          {(() => {
+                            const changedInTab = getCurrentTabSettings().filter(item => isSettingChanged(item.definition.key));
+                            return changedInTab.length > 0 ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                {changedInTab.length} modified
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
                       </div>
                     </div>
-                
-                {/* Tab Content */}
-                <div className="space-y-6">
-                  {(() => {
-                    const tabSettings = getCurrentTabSettings();
-                    
-                    // Group by model groups within current tab
-                    const modelGroups: Record<string, typeof tabSettings> = { '': [] };
-                    
-                    tabSettings.forEach(item => {
-                      const groupKey = item.definition.modelGroup || '';
-                      if (!modelGroups[groupKey]) {
-                        modelGroups[groupKey] = [];
-                      }
-                      modelGroups[groupKey].push(item);
-                    });
-                    
-                    return Object.entries(modelGroups).map(([modelGroup, groupItems]) => {
-                      // Filter out items that shouldn't be visible due to dependencies
-                      const visibleItems = groupItems.filter(item => isSettingVisible(item.definition));
-                      
-                      if (visibleItems.length === 0) return null;
-                      
-                      return (
-                        <div key={`${currentTab.id}-${modelGroup}`} className="space-y-4">
-                          {modelGroup && (
-                            <div className="border-l-4 border-blue-400 pl-4">
-                              <h4 className="text-lg font-medium text-gray-800 capitalize">
-                                {modelGroup} Model Configuration
-                              </h4>
-                              <p className="text-sm text-gray-600 mt-1">
-                                Configure {modelGroup} model API settings and credentials
-                              </p>
-                            </div>
-                          )}
-                          
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {visibleItems.map(({ definition, setting }) => (
-                              <div key={definition.key} className={
-                                definition.multiline || definition.key.includes('prompt') 
-                                  ? 'lg:col-span-2' 
-                                  : ''
-                              }>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  {definition.displayName}
-                                  {definition.isEncrypted && (
-                                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
-                                      🔒 Encrypted
-                                    </span>
-                                  )}
-                                </label>
-                                {renderSettingInput(definition, setting)}
-                                {definition.description && (
-                                  <p className="text-xs text-gray-500 mt-2">
-                                    {definition.description}
+
+                    {/* Tab Content */}
+                    <div className="space-y-6">
+                      {(() => {
+                        const tabSettings = getCurrentTabSettings();
+
+                        // Group by model groups within current tab
+                        const modelGroups: Record<string, typeof tabSettings> = { '': [] };
+
+                        tabSettings.forEach(item => {
+                          const groupKey = item.definition.modelGroup || '';
+                          if (!modelGroups[groupKey]) {
+                            modelGroups[groupKey] = [];
+                          }
+                          modelGroups[groupKey].push(item);
+                        });
+
+                        return Object.entries(modelGroups).map(([modelGroup, groupItems]) => {
+                          // Filter out items that shouldn't be visible due to dependencies
+                          const visibleItems = groupItems.filter(item => isSettingVisible(item.definition));
+
+                          if (visibleItems.length === 0) return null;
+
+                          return (
+                            <div key={`${currentTab.id}-${modelGroup}`} className="space-y-4">
+                              {modelGroup && (
+                                <div className="border-l-4 border-blue-400 pl-4">
+                                  <h4 className="text-lg font-medium text-gray-800 capitalize">
+                                    {modelGroup} Model Configuration
+                                  </h4>
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    Configure {modelGroup} model API settings and credentials
                                   </p>
-                                )}
-                                {definition.minValue !== undefined && definition.maxValue !== undefined && (
-                                  <p className="text-xs text-blue-600 mt-1">
-                                    Range: {definition.minValue} - {definition.maxValue}
-                                  </p>
-                                )}
-                                
-                                {/* Add separator after certain settings */}
-                                {definition.isSeparatorAfter && (
-                                  <div className="mt-6 border-b border-gray-200"></div>
-                                )}
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {visibleItems.map(({ definition, setting }) => (
+                                  <div key={definition.key} className={
+                                    definition.multiline || definition.key.includes('prompt')
+                                      ? 'lg:col-span-2'
+                                      : ''
+                                  }>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      <div className="flex items-center gap-2">
+                                        {definition.displayName}
+                                        {isSettingChanged(definition.key) && (
+                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-200 text-amber-800">
+                                            ✏️ Modified
+                                          </span>
+                                        )}
+                                        {definition.isEncrypted && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                                            🔒 Encrypted
+                                          </span>
+                                        )}
+                                      </div>
+                                    </label>
+                                    {renderSettingInput(definition, setting)}
+                                    {definition.description && (
+                                      <p className="text-xs text-gray-500 mt-2">
+                                        {definition.description}
+                                      </p>
+                                    )}
+                                    {definition.minValue !== undefined && definition.maxValue !== undefined && (
+                                      <p className="text-xs text-blue-600 mt-1">
+                                        Range: {definition.minValue} - {definition.maxValue}
+                                      </p>
+                                    )}
+
+                                    {/* Add separator after certain settings */}
+                                    {definition.isSeparatorAfter && (
+                                      <div className="mt-6 border-b border-gray-200"></div>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
+                            </div>
+                          );
+                        });
+                      })()
+                      }
+
+                      {/* Empty state for tabs with no settings */}
+                      {getCurrentTabSettings().length === 0 && (
+                        <div className="text-center py-12">
+                          <div className="text-4xl mb-4">{currentTab.icon}</div>
+                          <h4 className="text-lg font-medium text-gray-900 mb-2">No Settings Available</h4>
+                          <p className="text-gray-600">This section is currently empty or under development.</p>
                         </div>
-                      );
-                    });
-                  })()
-                  }
-                  
-                  {/* Empty state for tabs with no settings */}
-                  {getCurrentTabSettings().length === 0 && (
-                    <div className="text-center py-12">
-                      <div className="text-4xl mb-4">{currentTab.icon}</div>
-                      <h4 className="text-lg font-medium text-gray-900 mb-2">No Settings Available</h4>
-                      <p className="text-gray-600">This section is currently empty or under development.</p>
-                    </div>
-                  )}
+                      )}
                     </div>
                   </>
                 ) : (
@@ -1376,7 +1620,7 @@ export default function SettingsPage() {
               Active (receive news for this topic)
             </label>
           </div>
-          
+
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
             <button
               type="button"
@@ -1418,7 +1662,7 @@ export default function SettingsPage() {
               Enter a valid RSS or Atom feed URL
             </p>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Feed Title (optional)
@@ -1434,8 +1678,8 @@ export default function SettingsPage() {
               If left empty, the feed title will be automatically detected
             </p>
           </div>
-          
-          
+
+
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
             <button
               type="button"
@@ -1461,9 +1705,8 @@ export default function SettingsPage() {
         title={feedbackModal.title}
       >
         <div className="text-center py-4">
-          <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full mb-4 ${
-            feedbackModal.type === 'success' ? 'bg-green-100' : 'bg-red-100'
-          }`}>
+          <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full mb-4 ${feedbackModal.type === 'success' ? 'bg-green-100' : 'bg-red-100'
+            }`}>
             {feedbackModal.type === 'success' ? (
               <Check className={`h-6 w-6 text-green-600`} />
             ) : (
@@ -1473,11 +1716,10 @@ export default function SettingsPage() {
           <p className="text-gray-700 mb-6">{feedbackModal.message}</p>
           <button
             onClick={() => setFeedbackModal({ ...feedbackModal, isOpen: false })}
-            className={`px-4 py-2 rounded text-white transition-colors ${
-              feedbackModal.type === 'success' 
-                ? 'bg-green-600 hover:bg-green-700' 
+            className={`px-4 py-2 rounded text-white transition-colors ${feedbackModal.type === 'success'
+                ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-red-600 hover:bg-red-700'
-            }`}
+              }`}
           >
             OK
           </button>

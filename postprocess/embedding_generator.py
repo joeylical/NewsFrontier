@@ -225,7 +225,7 @@ class SimilarityCalculator:
     configurable thresholds.
     """
     
-    def __init__(self, default_threshold: float = 0.3):
+    def __init__(self, default_threshold: float = 0.62):
         """
         Initialize similarity calculator.
         
@@ -301,53 +301,71 @@ class SimilarityCalculator:
             return []
         
         for topic in topics:
-            topic_vector = topic.get('topic_vector')
-            if not topic_vector:
-                continue
-            
-            # Calculate similarities for available embeddings
-            title_similarity = None
-            summary_similarity = None
-            
-            if article_title_embedding:
-                title_similarity = self.calculate_cosine_similarity(
-                    article_title_embedding, topic_vector
-                )
-            
-            if article_summary_embedding:
-                summary_similarity = self.calculate_cosine_similarity(
-                    article_summary_embedding, topic_vector
-                )
-            
-            # Use the maximum similarity as final similarity
-            final_similarity = 0.0
-            similarity_source = "none"
-            
-            if title_similarity is not None and summary_similarity is not None:
-                if title_similarity > summary_similarity:
-                    final_similarity = title_similarity
-                    similarity_source = "title"
+            # Support both old 'topic_vector' and new 'topic_vectors' format
+            topic_vectors = topic.get('topic_vectors', [])
+            if not topic_vectors:
+                # Fallback to old single vector format for backward compatibility
+                topic_vector = topic.get('topic_vector')
+                if topic_vector:
+                    topic_vectors = [topic_vector]
                 else:
-                    final_similarity = summary_similarity
-                    similarity_source = "summary"
-            elif title_similarity is not None:
-                final_similarity = title_similarity
-                similarity_source = "title"
-            elif summary_similarity is not None:
-                final_similarity = summary_similarity
-                similarity_source = "summary"
-            else:
-                continue  # No valid similarities calculated
+                    continue
             
-            # Check threshold
-            if final_similarity >= threshold:
+            # Find the best similarity across all vectors in the array
+            best_similarity = 0.0
+            similarity_source = "none"
+            best_title_similarity = None
+            best_summary_similarity = None
+            
+            for i, topic_vector in enumerate(topic_vectors):
+                # Calculate similarities for available embeddings
+                title_similarity = None
+                summary_similarity = None
+                
+                if article_title_embedding:
+                    title_similarity = self.calculate_cosine_similarity(
+                        article_title_embedding, topic_vector
+                    )
+                
+                if article_summary_embedding:
+                    summary_similarity = self.calculate_cosine_similarity(
+                        article_summary_embedding, topic_vector
+                    )
+                
+                # Use the maximum similarity as current similarity
+                current_similarity = 0.0
+                current_source = "none"
+                
+                if title_similarity is not None and summary_similarity is not None:
+                    if title_similarity > summary_similarity:
+                        current_similarity = title_similarity
+                        current_source = f"title_v{i}"
+                    else:
+                        current_similarity = summary_similarity
+                        current_source = f"summary_v{i}"
+                elif title_similarity is not None:
+                    current_similarity = title_similarity
+                    current_source = f"title_v{i}"
+                elif summary_similarity is not None:
+                    current_similarity = summary_similarity
+                    current_source = f"summary_v{i}"
+                
+                # Update best similarity if this vector is better
+                if current_similarity > best_similarity:
+                    best_similarity = current_similarity
+                    similarity_source = current_source
+                    best_title_similarity = title_similarity
+                    best_summary_similarity = summary_similarity
+            
+            # Check threshold against best similarity
+            if best_similarity >= threshold:
                 topic_copy = topic.copy()
-                topic_copy['similarity_score'] = float(final_similarity)
+                topic_copy['similarity_score'] = float(best_similarity)
                 topic_copy['similarity_source'] = similarity_source
-                if title_similarity is not None:
-                    topic_copy['title_similarity'] = float(title_similarity)
-                if summary_similarity is not None:
-                    topic_copy['summary_similarity'] = float(summary_similarity)
+                if best_title_similarity is not None:
+                    topic_copy['title_similarity'] = float(best_title_similarity)
+                if best_summary_similarity is not None:
+                    topic_copy['summary_similarity'] = float(best_summary_similarity)
                 similar_topics.append(topic_copy)
         
         # Sort by similarity score descending
@@ -360,7 +378,7 @@ class SimilarityCalculator:
                           article_title_embedding: Optional[List[float]] = None,
                           article_summary_embedding: Optional[List[float]] = None,
                           events: List[Dict[str, Any]] = None,
-                          threshold: float = 0.7) -> Optional[Dict[str, Any]]:
+                          threshold: float = 0.75) -> Optional[Dict[str, Any]]:
         """
         Find most similar event cluster using embedding comparison.
         
@@ -385,29 +403,41 @@ class SimilarityCalculator:
         best_similarity = 0.0
         
         for event in events:
-            event_embedding = event.get('event_embedding')
-            if not event_embedding:
-                continue
+            # Support both old 'event_embedding' and new 'event_embeddings' format
+            event_embeddings = event.get('event_embeddings', [])
+            if not event_embeddings:
+                # Fallback to old single embedding format for backward compatibility
+                event_embedding = event.get('event_embedding')
+                if event_embedding:
+                    event_embeddings = [event_embedding]
+                else:
+                    continue
             
-            # Calculate similarities
-            title_similarity = 0.0
-            summary_similarity = 0.0
+            # Find best similarity across all embeddings in the array
+            event_best_similarity = 0.0
             
-            if article_title_embedding:
-                title_similarity = self.calculate_cosine_similarity(
-                    article_title_embedding, event_embedding
-                )
+            for event_embedding in event_embeddings:
+                # Calculate similarities
+                title_similarity = 0.0
+                summary_similarity = 0.0
+                
+                if article_title_embedding:
+                    title_similarity = self.calculate_cosine_similarity(
+                        article_title_embedding, event_embedding
+                    )
+                
+                if article_summary_embedding:
+                    summary_similarity = self.calculate_cosine_similarity(
+                        article_summary_embedding, event_embedding
+                    )
+                
+                # Use maximum similarity for this embedding
+                max_similarity = max(title_similarity, summary_similarity)
+                event_best_similarity = max(event_best_similarity, max_similarity)
             
-            if article_summary_embedding:
-                summary_similarity = self.calculate_cosine_similarity(
-                    article_summary_embedding, event_embedding
-                )
-            
-            # Use maximum similarity
-            max_similarity = max(title_similarity, summary_similarity)
-            
-            if max_similarity > best_similarity:
-                best_similarity = max_similarity
+            # Update best match if this event is better
+            if event_best_similarity > best_similarity:
+                best_similarity = event_best_similarity
                 best_match = event
         
         # Return match if above threshold

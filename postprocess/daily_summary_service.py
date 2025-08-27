@@ -13,7 +13,6 @@ from typing import Dict, Any, Optional, List
 
 # Import LLM functionality from shared library
 try:
-    from newsfrontier_lib import get_llm_client
     from newsfrontier_lib.llm_client_new import get_enhanced_llm_client
     from newsfrontier_lib.config_service import get_config, ConfigKeys
     logger = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ class DailySummaryService:
         
         # Use enhanced clients with fallback
         self.llm_client = get_enhanced_llm_client()
-        self.fallback_llm_client = get_llm_client()
+        self.fallback_llm_client = get_enhanced_llm_client()
         
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
     

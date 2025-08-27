@@ -16,7 +16,7 @@ from .database import Base
 from .models import (
     User, RSSFeed, RSSSubscription, RSSFetchRecord, RSSItemMetadata, 
     RSSItemDerivative, Topic, ArticleTopic, Event, ArticleEvent,
-    UserTopic, UserSummary, SystemSetting
+    UserTopic, UserSummary, SystemSetting, Embedding, TopicEmbedding, EventEmbedding
 )
 from .schemas import UserCreate, UserUpdate
 
@@ -149,6 +149,23 @@ class CRUDRSSFeed(CRUDBase[RSSFeed, dict, dict]):
             db.refresh(feed)
         return feed
 
+    def update_title_if_empty(
+        self,
+        db: Session,
+        *,
+        feed_id: int,
+        title: str
+    ) -> Optional[RSSFeed]:
+        """Update RSS feed title only if it's currently empty."""
+        feed = self.get(db, feed_id)
+        if feed and (not feed.title or feed.title.strip() == ''):
+            feed.title = title
+            feed.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(feed)
+            return feed
+        return None
+
 
 class CRUDRSSItem(CRUDBase[RSSItemMetadata, dict, dict]):
     def get_by_guid(
@@ -180,16 +197,29 @@ class CRUDRSSItem(CRUDBase[RSSItemMetadata, dict, dict]):
             )
         ).first()
 
-    def get_pending_processing(self, db: Session, *, limit: int = 50) -> List[RSSItemMetadata]:
+    def get_pending_processing(self, db: Session, *, limit: int = 50, max_age_days: int = None) -> List[RSSItemMetadata]:
         """Get articles that need AI processing."""
-        return db.query(RSSItemMetadata).filter(
+        query = db.query(RSSItemMetadata).filter(
             or_(
                 RSSItemMetadata.processing_status == 'pending',
                 RSSItemMetadata.processing_status == 'failed'
             )
         ).filter(
             RSSItemMetadata.processing_attempts < 5
-        ).order_by(RSSItemMetadata.created_at.asc()).limit(limit).all()
+        )
+        
+        # Add age filter if specified
+        if max_age_days is not None:
+            from datetime import datetime, timedelta
+            cutoff_date = datetime.utcnow() - timedelta(days=max_age_days)
+            query = query.filter(
+                or_(
+                    RSSItemMetadata.published_at >= cutoff_date,
+                    RSSItemMetadata.published_at.is_(None)  # Include articles without published_at
+                )
+            )
+        
+        return query.order_by(RSSItemMetadata.created_at.asc()).limit(limit).all()
 
     def get_recent_articles(
         self, 
@@ -647,5 +677,123 @@ topic = CRUDTopic(Topic)
 article_topic = CRUDArticleTopic(ArticleTopic)
 event = CRUDEvent(Event)
 article_event = CRUDArticleEvent(ArticleEvent)
+class CRUDEmbedding(CRUDBase[Embedding, dict, dict]):
+    def get_by_content_and_model(
+        self, 
+        db: Session, 
+        *, 
+        embedding: List[float],
+        model_name: str,
+        model_version: str = None
+    ) -> Optional[Embedding]:
+        """Find existing embedding by content and model info."""
+        query = db.query(Embedding).filter(
+            Embedding.model_name == model_name,
+            Embedding.embedding == embedding
+        )
+        if model_version:
+            query = query.filter(Embedding.model_version == model_version)
+        return query.first()
+    
+    def create_embedding(
+        self,
+        db: Session,
+        *,
+        embedding: List[float],
+        model_name: str,
+        model_version: str = None
+    ) -> Embedding:
+        """Create a new embedding record."""
+        embedding_data = {
+            "embedding": embedding,
+            "model_name": model_name,
+            "model_version": model_version,
+            "embedding_dimension": len(embedding)
+        }
+        return self.create(db, obj_in=embedding_data)
+
+
+class CRUDTopicEmbedding(CRUDBase[TopicEmbedding, dict, dict]):
+    def create_association(
+        self,
+        db: Session,
+        *,
+        topic_id: int,
+        embedding_id: int
+    ) -> TopicEmbedding:
+        """Create topic-embedding association."""
+        association_data = {
+            "topic_id": topic_id,
+            "embedding_id": embedding_id
+        }
+        return self.create(db, obj_in=association_data)
+    
+    def get_embeddings_for_topic(
+        self,
+        db: Session,
+        *,
+        topic_id: int
+    ) -> List[Embedding]:
+        """Get all embeddings for a topic."""
+        return db.query(Embedding).join(TopicEmbedding).filter(
+            TopicEmbedding.topic_id == topic_id
+        ).all()
+    
+    def remove_topic_embeddings(
+        self,
+        db: Session,
+        *,
+        topic_id: int
+    ):
+        """Remove all embeddings for a topic."""
+        db.query(TopicEmbedding).filter(
+            TopicEmbedding.topic_id == topic_id
+        ).delete()
+        db.commit()
+
+
+class CRUDEventEmbedding(CRUDBase[EventEmbedding, dict, dict]):
+    def create_association(
+        self,
+        db: Session,
+        *,
+        event_id: int,
+        embedding_id: int
+    ) -> EventEmbedding:
+        """Create event-embedding association."""
+        association_data = {
+            "event_id": event_id,
+            "embedding_id": embedding_id
+        }
+        return self.create(db, obj_in=association_data)
+    
+    def get_embeddings_for_event(
+        self,
+        db: Session,
+        *,
+        event_id: int
+    ) -> List[Embedding]:
+        """Get all embeddings for an event."""
+        return db.query(Embedding).join(EventEmbedding).filter(
+            EventEmbedding.event_id == event_id
+        ).all()
+    
+    def remove_event_embeddings(
+        self,
+        db: Session,
+        *,
+        event_id: int
+    ):
+        """Remove all embeddings for an event."""
+        db.query(EventEmbedding).filter(
+            EventEmbedding.event_id == event_id
+        ).delete()
+        db.commit()
+
+
+# Create instances
 user_summary = CRUDUserSummary(UserSummary)
 system_setting = CRUDSystemSetting(SystemSetting)
+embedding = CRUDEmbedding(Embedding)
+topic_embedding = CRUDTopicEmbedding(TopicEmbedding)
+event_embedding = CRUDEventEmbedding(EventEmbedding)

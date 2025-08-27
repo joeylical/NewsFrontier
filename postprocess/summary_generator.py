@@ -13,6 +13,10 @@ from typing import Dict, Any, Optional
 # Import LLM functionality from shared library
 try:
     from newsfrontier_lib import create_summary
+    from newsfrontier_lib.multi_stage_generator import MultiStageGenerator
+    from newsfrontier_lib.summary_chains import create_article_summary_chain, create_simple_summary_chain
+    from newsfrontier_lib.llm_client_new import get_enhanced_llm_client
+    from newsfrontier_lib.config_service import get_config, ConfigKeys
     logger = logging.getLogger(__name__)
 except ImportError as e:
     logger = logging.getLogger(__name__)
@@ -37,6 +41,23 @@ class SummaryGenerator:
         """
         self.prompt_manager = prompt_manager
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        
+        # Initialize multi-stage generator
+        try:
+            self.llm_client = get_enhanced_llm_client()
+            self.config_service = get_config()
+            self.multi_stage_generator = MultiStageGenerator(self.llm_client, self.config_service)
+            
+            # Register summary chains
+            self.multi_stage_generator.register_chain(create_article_summary_chain())
+            self.multi_stage_generator.register_chain(create_simple_summary_chain())
+            
+            self.use_multi_stage = self.config_service.get(ConfigKeys.MULTI_STAGE_SUMMARY_ENABLED, default=True)
+            self.logger.info("Multi-stage summary generation initialized successfully")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize multi-stage generation, falling back to simple method: {e}")
+            self.use_multi_stage = False
+            self.multi_stage_generator = None
     
     def create_article_summary(self, article: Dict[str, Any]) -> Optional[str]:
         """
@@ -62,12 +83,58 @@ class SummaryGenerator:
         try:
             content = article.get('content', '')
             title = article.get('title', '')
+            clean_text = article.get('clean_text', content)  # Use clean_text if available
             
             # Validate content length
-            if not content or len(content) < 100:
-                self.logger.info(f"Article content too short for summarization: {len(content)} chars")
+            if not clean_text or len(clean_text) < 100:
+                self.logger.info(f"Article content too short for summarization: {len(clean_text)} chars")
+                return None
+            
+            # Try multi-stage generation first
+            if self.use_multi_stage and self.multi_stage_generator:
+                try:
+                    return self._create_multi_stage_summary(title, clean_text)
+                except Exception as e:
+                    self.logger.warning(f"Multi-stage summary failed, falling back to simple method: {e}")
+            
+            # Fallback to simple method
+            return self._create_simple_summary(title, content)
+                
+        except ValueError:
+            # Re-raise prompt errors to be handled by caller
+            raise
+        except Exception as e:
+            self.logger.error(f"Error creating summary: {e}")
+            return None
+    
+    def _create_multi_stage_summary(self, title: str, clean_text: str) -> Optional[str]:
+        """Create summary using multi-stage generation"""
+        try:
+            # Prepare data for multi-stage processing
+            initial_data = {
+                "title": title,
+                "clean_text": clean_text
+            }
+            
+            # Execute the article summary chain
+            result = self.multi_stage_generator.execute_chain("article_summary", initial_data)
+            
+            if result["success"]:
+                summary = result["result"]
+                self.logger.info(f"Multi-stage summary generated successfully via {result.get('final_stage', 'unknown')} stage")
+                self.logger.debug(f"Execution log: {result['execution_log']}")
+                return summary
+            else:
+                self.logger.error(f"Multi-stage summary failed: {result.get('error', 'Unknown error')}")
                 return None
                 
+        except Exception as e:
+            self.logger.error(f"Multi-stage summary generation error: {e}")
+            raise
+    
+    def _create_simple_summary(self, title: str, content: str) -> Optional[str]:
+        """Create summary using simple/fallback method"""
+        try:
             # Get prompt from database - NO DEFAULT FALLBACK
             prompt_template = self.prompt_manager.get_prompt('summary_creation')
             if not prompt_template:
@@ -77,18 +144,15 @@ class SummaryGenerator:
             summary = create_summary(title, content, prompt_template)
             
             if summary:
-                self.logger.info(f"Created AI summary: {len(summary)} characters")
+                self.logger.info(f"Created simple summary: {len(summary)} characters")
                 return summary
             else:
                 self.logger.warning("LLM returned empty summary")
                 return None
                 
-        except ValueError:
-            # Re-raise prompt errors to be handled by caller
-            raise
         except Exception as e:
-            self.logger.error(f"Error creating summary: {e}")
-            return None
+            self.logger.error(f"Simple summary generation error: {e}")
+            raise
     
     def validate_summary_content(self, summary: str) -> bool:
         """

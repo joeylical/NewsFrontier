@@ -10,7 +10,7 @@ from datetime import datetime, date
 from typing import Optional, List
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, DateTime, Date, Float,
-    ForeignKey, UniqueConstraint, CheckConstraint, Index
+    ForeignKey, UniqueConstraint, CheckConstraint, Index, ARRAY
 )
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
@@ -157,6 +157,7 @@ class RSSItemDerivative(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     rss_item_id: Mapped[int] = mapped_column(Integer, ForeignKey("rss_items_metadata.id", ondelete="CASCADE"), unique=True, nullable=False)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    clean_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     title_embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(get_embedding_dimension()), nullable=True)
     summary_embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(get_embedding_dimension()), nullable=True)
     processing_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
@@ -178,6 +179,44 @@ class RSSItemDerivative(Base):
     rss_item: Mapped["RSSItemMetadata"] = relationship("RSSItemMetadata", back_populates="derivatives")
 
 
+class Embedding(Base):
+    """Vector embeddings storage with model information."""
+    __tablename__ = "embeddings"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    embedding: Mapped[List[float]] = mapped_column(Vector(get_embedding_dimension()), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_version: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    embedding_dimension: Mapped[int] = mapped_column(Integer, default=get_embedding_dimension())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
+class TopicEmbedding(Base):
+    """Many-to-many relationship between topics and embeddings."""
+    __tablename__ = "topic_embeddings"
+    
+    topic_id: Mapped[int] = mapped_column(Integer, ForeignKey("topics.id", ondelete="CASCADE"), primary_key=True)
+    embedding_id: Mapped[int] = mapped_column(Integer, ForeignKey("embeddings.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    
+    # Relationships
+    topic: Mapped["Topic"] = relationship("Topic", back_populates="topic_embeddings")
+    embedding: Mapped["Embedding"] = relationship("Embedding")
+
+
+class EventEmbedding(Base):
+    """Many-to-many relationship between events and embeddings."""
+    __tablename__ = "event_embeddings"
+    
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("events.id", ondelete="CASCADE"), primary_key=True)
+    embedding_id: Mapped[int] = mapped_column(Integer, ForeignKey("embeddings.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    
+    # Relationships
+    event: Mapped["Event"] = relationship("Event", back_populates="event_embeddings")
+    embedding: Mapped["Embedding"] = relationship("Embedding")
+
+
 class Topic(Base):
     """User-defined topics for news categorization."""
     __tablename__ = "topics"
@@ -185,7 +224,7 @@ class Topic(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    topic_vector: Mapped[Optional[List[float]]] = mapped_column(Vector(get_embedding_dimension()), nullable=True)
+    # Removed topic_vectors field - now using topic_embeddings relationship
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
@@ -200,6 +239,7 @@ class Topic(Base):
     events: Mapped[List["Event"]] = relationship("Event", back_populates="topic", cascade="all, delete-orphan")
     article_topics: Mapped[List["ArticleTopic"]] = relationship("ArticleTopic", back_populates="topic", cascade="all, delete-orphan")
     user_topics: Mapped[List["UserTopic"]] = relationship("UserTopic", back_populates="topic", cascade="all, delete-orphan")
+    topic_embeddings: Mapped[List["TopicEmbedding"]] = relationship("TopicEmbedding", back_populates="topic", cascade="all, delete-orphan")
 
 
 class ArticleTopic(Base):
@@ -232,7 +272,7 @@ class Event(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     event_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    event_embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(get_embedding_dimension()), nullable=True)
+    # Removed event_embeddings field - now using event_embeddings relationship
     last_updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
@@ -241,6 +281,7 @@ class Event(Base):
     user: Mapped["User"] = relationship("User", back_populates="events")
     topic: Mapped["Topic"] = relationship("Topic", back_populates="events")
     article_events: Mapped[List["ArticleEvent"]] = relationship("ArticleEvent", back_populates="event", cascade="all, delete-orphan")
+    event_embeddings: Mapped[List["EventEmbedding"]] = relationship("EventEmbedding", back_populates="event", cascade="all, delete-orphan")
 
 
 class ArticleEvent(Base):

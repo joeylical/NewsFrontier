@@ -21,12 +21,12 @@ NewsFrontier operates through a multi-stage pipeline that transforms raw RSS fee
 The AI processing pipeline transforms raw RSS articles into structured cluster-driven news insights through intelligent content analysis and contextual awareness:
 
 ### 1. Topic Embedding Generation
-The system creates vector embeddings for user-defined topics, encoding their semantic meaning into high-dimensional vectors using Google's gemini-embedding-001 model. These 768-dimensional topic embeddings serve as reference points for content classification and relevance scoring throughout the processing pipeline.
+The system creates vector embeddings for user-defined topics, encoding their semantic meaning into high-dimensional vectors using configurable LLM models via LiteLLM. These 768-dimensional topic embeddings serve as reference points for content classification and relevance scoring throughout the processing pipeline.
 
 ### 2. Article Processing and Summarization
 Each fetched article undergoes comprehensive two-stage processing:
-* **Content Summarization**: Articles are processed through Google Gemini LLM APIs (gemini-2.0-flash-lite) to generate concise, structured summaries that capture key points, context, and maintain anchor link references
-* **Vector Generation**: Article summaries are converted into 768-dimensional vector embeddings using gemini-embedding-001 for semantic similarity calculations and clustering operations
+* **Content Summarization**: Articles are processed through configurable LLM models via LiteLLM to generate concise, structured summaries that capture key points, context, and maintain anchor link references
+* **Vector Generation**: Article summaries are converted into 768-dimensional vector embeddings using configurable embedding models for semantic similarity calculations and clustering operations
 
 ### 3. Intelligent Cluster Detection and Classification
 When processing each article, the system employs a sophisticated multi-stage clustering approach:
@@ -42,7 +42,7 @@ For each relevant topic, the system processes clusters sequentially:
 
 #### Intelligent New Cluster Creation
 When articles don't match existing clusters:
-* **LLM-Based Analysis**: The system uses Gemini-2.5-Pro to analyze the article content and determine if it represents a genuinely new cluster or development
+* **LLM-Based Analysis**: The system uses configurable LLM models to analyze the article content and determine if it represents a genuinely new cluster or development
 * **Context-Aware Creation**: The LLM considers existing cluster titles, descriptions, and the topic hierarchy to make intelligent clustering decisions
 * **Dynamic Association**: New clusters are created with AI-generated titles and descriptions, and the article is associated with the new cluster with appropriate relevance scoring
 
@@ -67,16 +67,16 @@ Visual content is created through AI-powered image generation using Imagen-3.0-G
 
 ### AI Models and Applications
 
-The AI pipeline leverages multiple specialized models from Google's AI suite, each optimized for specific tasks:
+The AI pipeline leverages multiple specialized models through LiteLLM integration, allowing flexible model configuration for different providers:
 
-| Model | Type | Application |
-|-------|------|-------------|
-| **gemini-2.0-flash-lite** | Instruction-following | Article summary<br/>Image generation prompt generating |
-| **gemini-2.5-pro** | Instruction-following | Creating new cluster<br/>Daily summary |
-| **imagen-3.0-generate-002** | Image generation | Daily summary cover image |
-| **gemini-embedding-001** | Embedding | Article embedding<br/>Topic embedding<br/>Cluster embedding |
+| Model Type | Application | Notes |
+|------------|-------------|-------|
+| **Summary Models** | Article summarization<br/>Content generation | Configurable via LiteLLM (e.g., gemini-1.5-flash, gpt-4o-mini) |
+| **Analysis Models** | Cluster creation<br/>Daily summaries | Advanced reasoning models (e.g., gemini-1.5-pro, gpt-4o) |
+| **Embedding Models** | Vector generation<br/>Semantic search | Text embeddings (e.g., text-embedding-004, text-embedding-3-small) |
+| **Image Generation** | Cover image creation | Currently disabled (Google API removed) |
 
-This multi-model approach ensures optimal performance for each specific task while maintaining consistency in the overall AI processing pipeline.
+This multi-model approach through LiteLLM provides flexibility to use different AI providers while maintaining consistent performance across the processing pipeline.
 
 # Project Structure
 
@@ -131,19 +131,19 @@ This multi-model approach ensures optimal performance for each specific task whi
     - Daemon and one-shot execution modes
   
 * **`postprocess/`** - AI-powered content analysis and processing service
-  * **Technology Stack**: Python 3.11+, Google AI (Gemini), scikit-learn, pgvector, FastAPI
+  * **Technology Stack**: Python 3.11+, LiteLLM (multi-provider LLM integration), scikit-learn, pgvector, FastAPI
   * **Architecture**: AI processing pipeline with intelligent clustering and content analysis
   * **Core Responsibilities**:
     - Generating 768-dimensional vector embeddings for semantic search
     - Creating article summaries and derivatives using AI
     - Clustering related articles based on content similarity
   * **AI Integration Features**:
-    - Google Gemini models: Gemini-2.0-Flash-Lite for fast summarization
-    - Advanced analysis: Gemini-2.5-Pro for complex clustering and daily summaries
-    - Vector embeddings: gemini-embedding-001 for high-quality 768-dimensional vectors
+    - Multi-provider LLM support: Configurable models for different tasks via LiteLLM
+    - Multi-stage generation: Intelligent question-based content processing
+    - Vector embeddings: Configurable embedding models for high-quality semantic vectors
     - Clustering: Context-aware clustering decisions with LLM-based logic
     - Daily summaries: Personalized news summaries with structured markdown output
-    - Cover image generation: AI-generated image descriptions using Imagen models
+    - Image generation: Currently disabled (Google API removed)
   * **Operational Features**:
     - Daemon and one-shot execution modes
     - Comprehensive AI prompt testing framework
@@ -158,7 +158,7 @@ This multi-model approach ensures optimal performance for each specific task whi
     - SQLAlchemy ORM models for all database tables
     - Pydantic schemas for API request/response validation
     - CRUD operations with type-safe database access
-    - LLM client integration (Google Generative AI)
+    - LLM client integration (LiteLLM multi-provider support)
     - S3 client for cloud storage operations
     - Vector embedding utilities with pgvector support
   
@@ -637,11 +637,11 @@ src/
 * **Language**: Python 3.11+
 * **Architecture**: UV workspace member with AI processing pipeline
 * **AI/ML Stack**:
-  * **LLM Integration**: Google AI (Gemini) for content analysis and summarization
-  * **Models**: Gemini-2.0-Flash-Lite (fast), Gemini-2.5-Pro (advanced analysis)
-  * **Embeddings**: gemini-embedding-001 with 768-dimensional vectors
+  * **LLM Integration**: LiteLLM multi-provider support for content analysis and summarization
+  * **Models**: Configurable via LiteLLM (supports OpenAI, Google, Anthropic, etc.)
+  * **Embeddings**: Configurable embedding models with 768-dimensional vectors
   * **Vector Storage**: pgvector for similarity search and clustering
-  * **Image Generation**: Imagen-3.0-Generate-002 for cover images
+  * **Image Generation**: Currently disabled (Google API removed)
   * **Clustering**: Scikit-learn with LLM-based decision making
 * **Key Capabilities**:
   * Content analysis with topic extraction and entity recognition
@@ -978,30 +978,26 @@ Copy `.env.template` to `.env` and configure the following variables:
 * `JWT_EXPIRE_HOURS` - JWT token expiration time in hours (default: 24)
 * `PASSWORD_SALT_ROUNDS` - Bcrypt salt rounds for password hashing (default: 12)
 
-**AI/ML Services:**
-* `LLM_API_URL` - Primary LLM service endpoint
-  * Default: `https://generativelanguage.googleapis.com/v1beta/openai/`
+**AI/ML Services (via LiteLLM):**
+* `LLM_API_URL` - Primary LLM service endpoint (if using custom endpoints)
 * `LLM_API_KEY` - API key for LLM services
-* `GOOGLE_API_KEY` - Google AI API key (for Gemini models)
+* `OPENAI_API_KEY` - OpenAI API key (for GPT models)
+* `GOOGLE_API_KEY` - Google AI API key (for Gemini models via Vertex AI)
+* `ANTHROPIC_API_KEY` - Anthropic API key (for Claude models)
 
 **LLM Model Configuration:**
 * `LLM_MODEL_SUMMARY` - Fast model for article summarization
-  * Default: `gemini-2.0-flash-lite`
-* `LLM_MODEL_ANALYSIS` - Capable model for cluster detection and daily summaries
-  * Default: `gemini-2.5-pro`
+  * Default: `gemini-1.5-flash` (configurable via database)
+* `LLM_MODEL_ANALYSIS` - Advanced model for cluster detection and daily summaries
+  * Default: `gemini-1.5-pro` (configurable via database)
 
 **Vector Embedding Services:**
-* `EMBEDDING_API_URL` - Vector embedding service endpoint
-  * Default: `https://api.openai.com/v1`
 * `EMBEDDING_MODEL` - Embedding model name
-  * Default: `gemini-embedding-001`
+  * Default: `text-embedding-004` (configurable via database)
 * `EMBEDDING_DIMENSION` - Vector dimension size (default: 768)
 
 **Image Generation Services:**
-* `IMAGEGEN_MODEL` - AI image generation model
-  * Default: `imagen-3.0-generate-002`
-* `IMAGEGEN_ASPECT_RATIO` - Generated image aspect ratio (default: 16:9)
-* `IMAGEGEN_PERSON_GENERATE` - Person generation policy (default: dont_allow)
+* Image generation is currently disabled (Google API dependency removed)
 
 **Optional AI Services:**
 * `TRANSCRIPT_API_URL` - Speech-to-text service endpoint (optional)

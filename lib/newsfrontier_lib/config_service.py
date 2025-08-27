@@ -10,7 +10,7 @@ import json
 import logging
 from typing import Optional, Dict, Any, Union
 from sqlalchemy.orm import Session
-from .database import get_db
+from .database import get_db_session
 from .models import SystemSetting
 from .crypto import get_key_manager
 
@@ -36,7 +36,7 @@ class ConfigurationService:
         """Refresh configuration cache from database."""
         try:
             import time
-            with get_db() as db:
+            with get_db_session() as db:
                 settings = db.query(SystemSetting).all()
                 new_cache = {}
                 
@@ -155,7 +155,7 @@ class ConfigurationService:
             True if successful, False otherwise
         """
         try:
-            with get_db() as db:
+            with get_db_session() as db:
                 # Prepare value for storage
                 if value is None:
                     str_value = None
@@ -250,7 +250,7 @@ class ConfigurationService:
             True if successful, False otherwise
         """
         try:
-            with get_db() as db:
+            with get_db_session() as db:
                 setting = db.query(SystemSetting).filter(SystemSetting.setting_key == key).first()
                 if setting:
                     db.delete(setting)
@@ -282,7 +282,7 @@ class ConfigurationService:
             Dictionary of all configuration values
         """
         try:
-            with get_db() as db:
+            with get_db_session() as db:
                 query = db.query(SystemSetting)
                 if public_only:
                     query = query.filter(SystemSetting.is_public == True)
@@ -396,6 +396,15 @@ class ConfigKeys:
     POSTPROCESS_INTERVAL = 'postprocess_interval_minutes'
     
     # Processing configuration
+    TOPIC_SIMILARITY_THRESHOLD = 'topic_similarity_threshold'
     CLUSTER_THRESHOLD = 'cluster_threshold'
     MAX_PROCESSING_ATTEMPTS = 'max_processing_attempts'
     EMBEDDING_DIMENSION = 'embedding_dimension'
+    
+    # Batch processing configuration
+    BATCH_PROCESSING_SIZE = 'batch_processing_size'
+    BATCH_PROCESSING_ENABLED = 'batch_processing_enabled'
+    
+    # Multi-stage Generation Features
+    MULTI_STAGE_SUMMARY_ENABLED = 'multi_stage_summary_enabled'
+    MULTI_STAGE_CLUSTERING_ENABLED = 'multi_stage_clustering_enabled'

@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS rss_item_derivatives (
     id SERIAL PRIMARY KEY,
     rss_item_id INTEGER UNIQUE REFERENCES rss_items_metadata(id) ON DELETE CASCADE,
     summary TEXT,
+    clean_text TEXT,
     title_embedding VECTOR({{EMBEDDING_DIMENSION}}),
     summary_embedding VECTOR({{EMBEDDING_DIMENSION}}),
     processing_status VARCHAR(20) DEFAULT 'pending' CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed')),
@@ -94,16 +95,33 @@ CREATE TABLE IF NOT EXISTS rss_item_derivatives (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Create topics table with dynamic vector dimension
+-- Create embeddings table for storing vector embeddings
+CREATE TABLE IF NOT EXISTS embeddings (
+    id SERIAL PRIMARY KEY,
+    embedding VECTOR({{EMBEDDING_DIMENSION}}) NOT NULL,
+    model_name VARCHAR(255) NOT NULL,
+    model_version VARCHAR(100),
+    embedding_dimension INTEGER DEFAULT {{EMBEDDING_DIMENSION}},
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create topics table (no embedding fields)
 CREATE TABLE IF NOT EXISTS topics (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    topic_vector VECTOR({{EMBEDDING_DIMENSION}}),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     CONSTRAINT unique_user_topic_name UNIQUE (user_id, name)
+);
+
+-- Create topic-embeddings relationship table
+CREATE TABLE IF NOT EXISTS topic_embeddings (
+    topic_id INTEGER REFERENCES topics(id) ON DELETE CASCADE,
+    embedding_id INTEGER REFERENCES embeddings(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (topic_id, embedding_id)
 );
 
 -- Create article-topics relationship table
@@ -115,7 +133,7 @@ CREATE TABLE IF NOT EXISTS article_topics (
     PRIMARY KEY (rss_item_id, topic_id)
 );
 
--- Create events table with dynamic vector dimension
+-- Create events table (no embedding fields)
 CREATE TABLE IF NOT EXISTS events (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -123,10 +141,17 @@ CREATE TABLE IF NOT EXISTS events (
     title VARCHAR(500) NOT NULL,
     description TEXT,
     event_description TEXT,
-    event_embedding VECTOR({{EMBEDDING_DIMENSION}}),
     last_updated_at TIMESTAMP DEFAULT NOW(),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create event-embeddings relationship table
+CREATE TABLE IF NOT EXISTS event_embeddings (
+    event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+    embedding_id INTEGER REFERENCES embeddings(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (event_id, embedding_id)
 );
 
 -- Create article-events relationship table
@@ -194,7 +219,9 @@ CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(setting_ke
 -- These can be created manually later: 
 -- CREATE INDEX idx_title_embedding ON rss_item_derivatives USING ivfflat (title_embedding vector_cosine_ops) WITH (lists = 100);
 -- CREATE INDEX idx_summary_embedding ON rss_item_derivatives USING ivfflat (summary_embedding vector_cosine_ops) WITH (lists = 100);
--- CREATE INDEX idx_topic_vector ON topics USING ivfflat (topic_vector vector_cosine_ops) WITH (lists = 100);
+-- CREATE INDEX idx_topic_vectors ON topics USING gin (topic_vectors);
+-- Note: For array columns, GIN indexes work better than IVFFlat. Individual vector similarity 
+-- searches will be handled in application code by iterating through the array.
 
 -- Insert default system settings
 INSERT INTO system_settings (setting_key, setting_value, setting_type, description, is_public) VALUES
@@ -246,6 +273,7 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
     -- Processing Configuration
     ('scraper_interval_minutes', '60', 'integer', 'RSS scraper interval in minutes', false),
     ('postprocess_interval_minutes', '30', 'integer', 'Post-processing interval in minutes', false),
+    ('max_article_age_days', '7', 'integer', 'Maximum age of articles to process (in days)', false),
     
     -- S3 Configuration
     ('s3_region', 'us-east-1', 'string', 'S3 region', false),

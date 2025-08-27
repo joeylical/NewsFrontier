@@ -40,6 +40,9 @@ export const API_ENDPOINTS = {
     SETTINGS: '/api/admin/system-settings',
     PROVIDER_URLS: '/api/admin/provider-urls',
   },
+  PUBLIC: {
+    SETTINGS: '/api/public/system-settings',
+  },
 } as const;
 
 export const STORAGE_KEYS = {

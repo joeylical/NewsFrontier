@@ -9,7 +9,7 @@ import os
 import logging
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from .database import get_db
+from .database import get_db_session
 from .models import SystemSetting
 from .config_service import ConfigKeys, get_config
 from .crypto import get_key_manager, test_encryption
@@ -113,10 +113,17 @@ def init_default_settings() -> bool:
                 'public': True
             },
             {
-                'key': ConfigKeys.CLUSTER_THRESHOLD,
-                'value': '0.8',
+                'key': ConfigKeys.TOPIC_SIMILARITY_THRESHOLD,
+                'value': '0.62',
                 'type': 'float',
-                'description': 'Similarity threshold for article clustering',
+                'description': 'Similarity threshold for matching articles to topics',
+                'public': True
+            },
+            {
+                'key': ConfigKeys.CLUSTER_THRESHOLD,
+                'value': '0.75',
+                'type': 'float',
+                'description': 'Similarity threshold for clustering articles into events',
                 'public': True
             },
             {
@@ -131,6 +138,20 @@ def init_default_settings() -> bool:
                 'value': '768',
                 'type': 'integer',
                 'description': 'Embedding vector dimension',
+                'public': True
+            },
+            {
+                'key': ConfigKeys.BATCH_PROCESSING_SIZE,
+                'value': '20',
+                'type': 'integer',
+                'description': 'Number of articles to process in a single batch',
+                'public': True
+            },
+            {
+                'key': ConfigKeys.BATCH_PROCESSING_ENABLED,
+                'value': 'true',
+                'type': 'boolean',
+                'description': 'Enable batch processing for better performance',
                 'public': True
             },
             
@@ -153,7 +174,7 @@ def init_default_settings() -> bool:
         
         # Initialize settings
         success_count = 0
-        with get_db() as db:
+        with get_db_session() as db:
             for setting_def in default_settings:
                 try:
                     # Check if setting already exists
@@ -234,7 +255,7 @@ def migrate_from_env() -> bool:
         ]
         
         success_count = 0
-        with get_db() as db:
+        with get_db_session() as db:
             for env_key, config_key, setting_type, description, encrypt in env_migrations:
                 try:
                     # Check if already exists in database
@@ -336,7 +357,7 @@ def list_settings(include_encrypted: bool = False, public_only: bool = False) ->
         
         # Add indication for encrypted values
         if include_encrypted:
-            with get_db() as db:
+            with get_db_session() as db:
                 encrypted_settings = db.query(SystemSetting).filter(
                     SystemSetting.setting_key.like('%_encrypted')
                 ).all()

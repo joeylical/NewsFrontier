@@ -53,7 +53,7 @@ class ClusterDetectionTester:
             self.prompt_manager,
             self.similarity_calculator,
             backend_client,
-            cluster_threshold=0.7
+            cluster_threshold=0.75
         )
         
     async def test_with_article_id(self, article_id, user_id=None):
@@ -303,7 +303,7 @@ class ClusterDetectionTester:
             
         return self.embedding_generator.generate_summary_embedding(summary)
         
-    def _find_similar_topics(self, title_embedding=None, summary_embedding=None, user_id=None, similarity_threshold=0.7):
+    def _find_similar_topics(self, title_embedding=None, summary_embedding=None, user_id=None, similarity_threshold=0.62):
         """查找相似主题，使用title和summary embedding的双重判断"""
         try:
             # 获取所有topics

@@ -3,7 +3,9 @@
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { apiClient } from '@/lib/api-client';
+import { API_ENDPOINTS } from '@/lib/constants';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import DebugModal from '@/components/DebugModal';
 import { Menu } from 'lucide-react';
@@ -16,6 +18,24 @@ export default function DashboardLayout({
   const { user, logout, isLoading } = useAuth();
   const router = useRouter();
   const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
+  const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true); // Default to true
+
+  useEffect(() => {
+    const checkDailySummarySettings = async () => {
+      if (user && !user.is_admin) {
+        try {
+          const settings = await apiClient.get<Array<{setting_key: string; setting_value: string}>>(API_ENDPOINTS.PUBLIC.SETTINGS);
+          const enabled = settings.find(s => s.setting_key === 'daily_summary_enabled')?.setting_value === 'true';
+          setDailySummaryEnabled(enabled);
+        } catch (error) {
+          console.warn('Could not fetch daily summary settings:', error);
+          // Keep default value of true
+        }
+      }
+    };
+
+    checkDailySummarySettings();
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -39,7 +59,13 @@ export default function DashboardLayout({
             {/* Logo */}
             <div className="flex-shrink-0">
               <Link 
-                href={user?.is_admin ? "/dashboard/settings" : "/dashboard"} 
+                href={
+                  user?.is_admin 
+                    ? "/dashboard/settings" 
+                    : dailySummaryEnabled 
+                      ? "/dashboard" 
+                      : "/dashboard/topics"
+                } 
                 className="text-xl font-semibold text-gray-900 hover:text-gray-700"
               >
                 NewsFrontier
@@ -56,9 +82,11 @@ export default function DashboardLayout({
               ) : (
                 // Regular users see normal dashboard
                 <>
-                  <Link href="/dashboard" className="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium">
-                    HOME
-                  </Link>
+                  {dailySummaryEnabled && (
+                    <Link href="/dashboard" className="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium">
+                      HOME
+                    </Link>
+                  )}
                   <Link href="/dashboard/topics" className="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium">
                     Topics
                   </Link>

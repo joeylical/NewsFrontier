@@ -17,7 +17,6 @@ in pkgs.mkShell {
       pkgs.libz
       pkgs.stdenv.cc.cc
     ])}
-    sudo nixos-firewall-tool open tcp 3000
   '';
   env = {
     UV_PYTHON_DOWNLOADS = "never";
