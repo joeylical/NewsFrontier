@@ -58,8 +58,8 @@ def main():
     print(f"  - Cluster threshold: {cluster_threshold}")
     print(f"  - Max articles per event: {max_articles_per_event}")
     
-    # Function to read and escape prompt content for SQL
-    def read_prompt(prompt_file):
+    # Function to read prompt content and convert to YAML format if needed
+    def read_prompt(prompt_file, prompt_name):
         full_path = script_dir / prompt_file
         
         if not full_path.exists():
@@ -68,20 +68,48 @@ def main():
         
         try:
             with open(full_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            # Escape single quotes for SQL
-            return content.replace("'", "''")
+                content = f.read().strip()
+            
+            # Check file extension
+            file_ext = full_path.suffix.lower()
+            
+            if file_ext == '.txt':
+                # Convert TXT to YAML format
+                # Create a proper name from the prompt key
+                formatted_name = prompt_name.replace('_', ' ').title()
+                
+                yaml_content = f"""name: {formatted_name}
+description: Generated from {prompt_file}
+stages:
+  - name: main_prompt
+    type: final
+    prompt: |
+{chr(10).join('      ' + line for line in content.split(chr(10)))}"""
+                
+                print(f"  - Converted {prompt_file} (TXT) to YAML format")
+                # Escape single quotes for SQL
+                return yaml_content.replace("'", "''")
+                
+            elif file_ext in ['.yaml', '.yml']:
+                # Use YAML content as-is
+                print(f"  - Using {prompt_file} (YAML) as-is")
+                # Escape single quotes for SQL  
+                return content.replace("'", "''")
+            else:
+                print(f"Error: Unsupported file format: {file_ext} for {prompt_file}")
+                sys.exit(1)
+                
         except Exception as e:
             print(f"Error reading prompt file {full_path}: {e}")
             sys.exit(1)
     
     print("Loading prompts from modular files...")
     
-    # Read prompt files
+    # Read prompt files and convert to YAML format if needed
     try:
         prompts = {}
         for key, filename in prompts_config.items():
-            prompts[f'PROMPT_{key.upper()}'] = read_prompt(filename)
+            prompts[f'PROMPT_{key.upper()}_YAML'] = read_prompt(filename, key)
     except Exception as e:
         print(f"Error loading prompts: {e}")
         sys.exit(1)

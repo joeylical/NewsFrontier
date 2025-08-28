@@ -1,0 +1,67 @@
+# Example Article Summary Chain Configuration
+name: Article Summary Chain
+description: Multi-stage chain for generating article summaries with content analysis
+stages:
+  - name: content_analysis
+    type: question
+    prompt: |
+      Analyze the following article and determine its primary content type:
+      
+      Title: {title}
+      Content: {content}
+      
+      What type of content is this?
+    options:
+      - "news"
+      - "opinion" 
+      - "technical"
+      - "general"
+    next_stages:
+      news: news_summary
+      opinion: opinion_summary
+      technical: technical_summary
+      general: general_summary
+
+  - name: news_summary
+    type: final
+    prompt: |
+      Create a concise news summary for the following article:
+      
+      Title: {title}
+      Content: {content}
+      
+      Focus on the 5 W's (Who, What, When, Where, Why) and key facts.
+      Keep the summary under 150 words.
+
+  - name: opinion_summary
+    type: final
+    prompt: |
+      Create a summary for the following opinion piece:
+      
+      Title: {title}  
+      Content: {content}
+      
+      Focus on the main argument, supporting points, and conclusion.
+      Keep the summary under 150 words.
+
+  - name: technical_summary
+    type: final
+    prompt: |
+      Create a technical summary for the following article:
+      
+      Title: {title}
+      Content: {content}
+      
+      Focus on key technical concepts, methodologies, and outcomes.
+      Keep the summary under 150 words.
+
+  - name: general_summary
+    type: final
+    prompt: |
+      Create a general summary for the following article:
+      
+      Title: {title}
+      Content: {content}
+      
+      Capture the main points and key information.
+      Keep the summary under 150 words.

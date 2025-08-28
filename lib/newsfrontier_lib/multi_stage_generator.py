@@ -11,6 +11,7 @@ import re
 from typing import Dict, List, Any, Optional, Union, Callable
 from enum import Enum
 from dataclasses import dataclass, field
+from .chain_loader import get_chain_loader, ChainValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,149 @@ class MultiStageGenerator:
         chain_config.validate()
         self.chains[chain_config.name] = chain_config
         self.logger.info(f"Registered processing chain: {chain_config.name}")
+    
+    def load_chain_from_database(self, chain_name: str) -> bool:
+        """
+        Load a chain configuration from database YAML and register it.
+        
+        Args:
+            chain_name: Name of the chain to load
+            
+        Returns:
+            True if loaded successfully, False otherwise
+        """
+        try:
+            chain_loader = get_chain_loader()
+            yaml_config = chain_loader.load_chain_from_database(chain_name)
+            
+            if not yaml_config:
+                self.logger.warning(f"No configuration found for chain: {chain_name}")
+                return False
+            
+            # Convert YAML config to ChainConfig
+            chain_config = self._convert_yaml_to_chain_config(yaml_config)
+            
+            # Register the chain
+            self.register_chain(chain_config)
+            
+            self.logger.info(f"Successfully loaded and registered chain from database: {chain_name}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load chain '{chain_name}' from database: {e}")
+            return False
+    
+    def load_all_chains_from_database(self) -> int:
+        """
+        Load all available chain configurations from database.
+        
+        Returns:
+            Number of chains successfully loaded
+        """
+        try:
+            chain_loader = get_chain_loader()
+            all_chains = chain_loader.load_all_chains()
+            
+            loaded_count = 0
+            for chain_name, yaml_config in all_chains.items():
+                try:
+                    chain_config = self._convert_yaml_to_chain_config(yaml_config)
+                    self.register_chain(chain_config)
+                    loaded_count += 1
+                except Exception as e:
+                    self.logger.error(f"Failed to register chain '{chain_name}': {e}")
+            
+            self.logger.info(f"Loaded {loaded_count} chains from database")
+            return loaded_count
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load chains from database: {e}")
+            return 0
+    
+    def load_prompt_chain_from_database(self, prompt_name: str) -> bool:
+        """
+        Load a prompt-specific chain configuration from database.
+        
+        Args:
+            prompt_name: Name of the prompt (e.g., 'prompt_summary_creation')
+            
+        Returns:
+            True if loaded successfully, False otherwise
+        """
+        try:
+            chain_loader = get_chain_loader()
+            yaml_config = chain_loader.load_prompt_chain_from_database(prompt_name)
+            
+            if not yaml_config:
+                self.logger.debug(f"No chain configuration found for prompt: {prompt_name}")
+                return False
+            
+            # Convert YAML config to ChainConfig
+            chain_config = self._convert_yaml_to_chain_config(yaml_config)
+            
+            # Register the chain
+            self.register_chain(chain_config)
+            
+            self.logger.info(f"Successfully loaded and registered prompt chain from database: {prompt_name}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load prompt chain '{prompt_name}' from database: {e}")
+            return False
+    
+    def _convert_yaml_to_chain_config(self, yaml_config: Dict[str, Any]) -> ChainConfig:
+        """
+        Convert YAML configuration to ChainConfig object.
+        
+        Args:
+            yaml_config: Parsed YAML configuration dictionary
+            
+        Returns:
+            ChainConfig object
+        """
+        stages = []
+        
+        for stage_data in yaml_config['stages']:
+            # Determine stage type
+            stage_type = StageType(stage_data['type'])
+            
+            # Create stage configuration
+            stage_config = StageConfig(
+                id=stage_data['name'],
+                stage_type=stage_type,
+                prompt_template=stage_data['prompt']
+            )
+            
+            # Add stage-specific configurations
+            if stage_type == StageType.QUESTION:
+                if 'options' in stage_data:
+                    stage_config.options = stage_data['options']
+                if 'next_stages' in stage_data:
+                    stage_config.next_stages = stage_data['next_stages']
+            
+            elif stage_data['type'] == 'conditional':
+                # Handle conditional stages (map to QUESTION type with conditions)
+                stage_config.stage_type = StageType.QUESTION
+                if 'condition' in stage_data:
+                    stage_config.condition = stage_data['condition']
+                if 'next_stage' in stage_data:
+                    stage_config.next_stages = stage_data['next_stage']
+            
+            # Add optional fields
+            if 'description' in stage_data:
+                stage_config.description = stage_data['description']
+            if 'max_tokens' in stage_data:
+                stage_config.max_tokens = stage_data['max_tokens']
+            if 'temperature' in stage_data:
+                stage_config.temperature = stage_data['temperature']
+            
+            stages.append(stage_config)
+        
+        return ChainConfig(
+            name=yaml_config['name'],
+            description=yaml_config['description'],
+            stages=stages
+        )
         
     def execute_chain(self, chain_name: str, initial_data: Dict[str, Any]) -> Dict[str, Any]:
         """

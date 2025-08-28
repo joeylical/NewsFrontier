@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, status, Response, Request
+from fastapi import FastAPI, HTTPException, Depends, status, Response, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -3082,6 +3082,31 @@ async def get_system_stats(db = Depends(get_session)):
 async def root():
     logger.info("Root endpoint accessed")
     return {"message": "NewsFrontier API is running"}
+
+# YAML Chain Validation API
+@app.post("/api/admin/validate-chain-yaml")
+def validate_chain_yaml(
+    yaml_content: str = Body(..., description="YAML chain configuration to validate"),
+    admin_user = Depends(verify_admin)
+):
+    """Admin API: Validate YAML chain configuration syntax and structure."""
+    try:
+        from newsfrontier_lib.chain_loader import validate_chain_yaml
+        
+        # Validate the YAML content
+        errors = validate_chain_yaml(yaml_content)
+        
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors
+        }
+        
+    except Exception as e:
+        logger.error(f"Error validating YAML chain: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 @app.on_event("startup")
 async def startup_event():

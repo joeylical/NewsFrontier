@@ -1,0 +1,118 @@
+# Example Individual Prompt Chain Configuration
+# This can be used for any prompt: summary_creation, cluster_detection, daily_summary_system, or cover_image_generation
+
+name: Individual Summary Creation Chain
+description: Multi-stage chain specifically for article summary creation prompt
+stages:
+  - name: content_type_analysis
+    type: question
+    prompt: |
+      Analyze the following article and determine its content characteristics:
+      
+      Title: {title}
+      Content: {clean_text}
+      
+      What type of content is this? Choose the most appropriate option:
+      1. Breaking News (urgent, recent events)
+      2. Analysis/Opinion (editorial, commentary, analysis pieces)  
+      3. Technical/Research (scientific, technical, academic content)
+      4. Business/Finance (markets, companies, economic news)
+      5. General News (standard news reporting)
+    options:
+      - "breaking_news"
+      - "analysis_opinion" 
+      - "technical_research"
+      - "business_finance"
+      - "general_news"
+    next_stages:
+      breaking_news: breaking_news_summary
+      analysis_opinion: analysis_summary
+      technical_research: technical_summary
+      business_finance: business_summary
+      general_news: general_summary
+
+  - name: breaking_news_summary
+    type: final
+    prompt: |
+      Create a concise summary for this breaking news article:
+      
+      Title: {title}
+      Content: {clean_text}
+      
+      Focus on:
+      - What happened (key event)
+      - When it happened
+      - Who is involved
+      - Where it occurred
+      - Why it's significant
+      - Any immediate implications
+      
+      Keep the summary urgent and factual, under 120 words.
+
+  - name: analysis_summary
+    type: final
+    prompt: |
+      Create a summary for this analysis/opinion piece:
+      
+      Title: {title}
+      Content: {clean_text}
+      
+      Focus on:
+      - Main argument or thesis
+      - Key supporting points
+      - Author's perspective
+      - Conclusions drawn
+      - Implications discussed
+      
+      Keep the summary analytical, under 150 words.
+
+  - name: technical_summary
+    type: final
+    prompt: |
+      Create a summary for this technical/research content:
+      
+      Title: {title}
+      Content: {clean_text}
+      
+      Focus on:
+      - Research question or technical problem
+      - Methodology or approach
+      - Key findings or results
+      - Technical innovations
+      - Practical applications
+      
+      Keep the summary precise and technical, under 150 words.
+
+  - name: business_summary
+    type: final
+    prompt: |
+      Create a summary for this business/finance article:
+      
+      Title: {title}
+      Content: {clean_text}
+      
+      Focus on:
+      - Company or market involved
+      - Financial impact or numbers
+      - Business implications
+      - Market reactions
+      - Future outlook
+      
+      Keep the summary business-focused, under 140 words.
+
+  - name: general_summary
+    type: final
+    prompt: |
+      Create a comprehensive summary for this news article:
+      
+      Title: {title}
+      Content: {clean_text}
+      
+      Focus on:
+      - Main story or event
+      - Key facts and details
+      - People or organizations involved
+      - Context and background
+      - Significance or impact
+      
+      Keep the summary informative and balanced, under 140 words.

@@ -231,11 +231,7 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
     ('similarity_threshold', '{{SIMILARITY_THRESHOLD}}', 'float', 'Minimum similarity score for clustering (0.0-1.0)', true),
     ('cluster_threshold', '{{CLUSTER_THRESHOLD}}', 'float', 'Minimum embedding similarity score for direct event assignment (0.0-1.0)', true),
     ('max_articles_per_event', '{{MAX_ARTICLES_PER_EVENT}}', 'integer', 'Maximum articles to associate with a single event', true),
-    ('prompt_summary_creation', '{{PROMPT_SUMMARY_CREATION}}', 'string', 'Prompt for creating article summaries', false),
-    ('prompt_cluster_detection', '{{PROMPT_CLUSTER_DETECTION}}', 'string', 'Prompt for detecting and clustering news events', false),
-    -- Daily Summary Prompts
-    ('prompt_daily_summary_system', '{{PROMPT_DAILY_SUMMARY_SYSTEM}}', 'string', 'System prompt for daily summary generation', false),
-    ('prompt_cover_image_generation', '{{PROMPT_COVER_IMAGE_GENERATION}}', 'string', 'Prompt for generating cover image descriptions', false),
+    -- Legacy prompt entries (will be replaced by YAML configurations below)
     
     -- Default API Configuration
     ('default_llm_provider', 'openai', 'string', 'Default API provider for LLM services', false),
@@ -280,7 +276,26 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
     ('s3_bucket', NULL, 'string', 'S3 bucket name', false),
     ('s3_endpoint_encrypted', NULL, 'string', 'S3 endpoint URL (encrypted)', false),
     ('s3_access_key_id_encrypted', NULL, 'string', 'S3 access key ID (encrypted)', false),
-    ('s3_secret_key_encrypted', NULL, 'string', 'S3 secret access key (encrypted)', false)
+    ('s3_secret_key_encrypted', NULL, 'string', 'S3 secret access key (encrypted)', false),
+    
+    -- Legacy multi-stage toggles removed - all prompts are now YAML-based
+    
+    -- Chain Configurations (YAML)
+    ('chain_article_summary_config', NULL, 'string', 'YAML configuration for article summary chain', false),
+    ('chain_clustering_detection_config', NULL, 'string', 'YAML configuration for clustering detection chain', false),
+    ('chain_event_similarity_config', NULL, 'string', 'YAML configuration for event similarity chain', false),
+    ('chain_simple_clustering_config', NULL, 'string', 'YAML configuration for simple clustering chain', false),
+    ('chain_event_naming_config', NULL, 'string', 'YAML configuration for event naming chain', false),
+    
+    -- Batch Processing Configuration  
+    ('batch_processing_size', '20', 'integer', 'Number of articles to process in a single batch', false),
+    ('batch_processing_enabled', 'true', 'boolean', 'Enable batch processing for better performance', false),
+    
+    -- YAML Prompt Configurations (all prompts are now YAML-based)
+    ('prompt_summary_creation', '{{PROMPT_SUMMARY_CREATION_YAML}}', 'string', 'YAML configuration for article summary generation', false),
+    ('prompt_cluster_detection', '{{PROMPT_CLUSTER_DETECTION_YAML}}', 'string', 'YAML configuration for cluster detection', false),
+    ('prompt_daily_summary_system', '{{PROMPT_DAILY_SUMMARY_SYSTEM_YAML}}', 'string', 'YAML configuration for daily summary generation', false),
+    ('prompt_cover_image_generation', '{{PROMPT_COVER_IMAGE_GENERATION_YAML}}', 'string', 'YAML configuration for cover image generation', false)
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- Create default admin user (password: admin)

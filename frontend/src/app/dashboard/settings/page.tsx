@@ -6,8 +6,10 @@ import { API_ENDPOINTS } from '@/lib/constants';
 import { Topic, RSSFeed, User } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import Modal from '@/components/Modal';
+import YamlEditor from '@/components/YamlEditor';
+import FileSelector from '@/components/FileSelector';
 import { useAuth } from '@/lib/auth-context';
-import { Check, X } from 'lucide-react';
+import { Check, X, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface TopicFormData {
   name: string;
@@ -44,6 +46,7 @@ interface StaticSettingDefinition {
   type: 'string' | 'integer' | 'float' | 'boolean';
   isEncrypted?: boolean;
   multiline?: boolean;
+  isYaml?: boolean;
   options?: string[];
   minValue?: number;
   maxValue?: number;
@@ -274,42 +277,110 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     defaultValue: 'true'
   },
 
-  // ===== AI PROMPTS =====
+  // ===== AI PROMPTS (All YAML-based) =====
   {
     key: 'prompt_summary_creation',
-    displayName: 'Article Summary Prompt',
-    description: 'System prompt for creating article summaries',
+    displayName: 'Article Summary Configuration',
+    description: 'YAML configuration for article summary generation',
     category: 'AI Prompts',
     type: 'string',
     multiline: true,
-    defaultValue: 'Create a concise summary of the following news article...'
+    isYaml: true,
+    defaultValue: `name: Article Summary Generation
+description: Generate concise summaries for news articles
+stages:
+  - name: summary_generation
+    type: final
+    prompt: |
+      Create a concise summary of the following news article:
+      
+      Title: {title}
+      Content: {clean_text}
+      
+      Requirements:
+      - Keep it under 150 words
+      - Focus on key facts and main points
+      - Use clear, engaging language
+      - Maintain objectivity`
   },
   {
     key: 'prompt_cluster_detection',
-    displayName: 'Cluster Detection Prompt',
-    description: 'System prompt for detecting and clustering related news events',
+    displayName: 'Cluster Detection Configuration', 
+    description: 'YAML configuration for detecting and clustering related news events',
     category: 'AI Prompts',
     type: 'string',
     multiline: true,
-    defaultValue: 'Analyze the following news articles and identify clusters...'
+    isYaml: true,
+    defaultValue: `name: News Event Clustering
+description: Detect and cluster related news articles into events
+stages:
+  - name: cluster_analysis
+    type: final
+    prompt: |
+      Analyze the following news articles and determine if they should be clustered together:
+      
+      Articles: {articles}
+      
+      Consider:
+      - Similar topics or events
+      - Time proximity
+      - Geographic relevance
+      - Key entities mentioned
+      
+      Provide clustering recommendations with confidence scores.`
   },
   {
     key: 'prompt_daily_summary_system',
-    displayName: 'Daily Summary Prompt',
-    description: 'System prompt for generating daily news summaries',
+    displayName: 'Daily Summary Configuration',
+    description: 'YAML configuration for generating daily news summaries',
     category: 'AI Prompts',
     type: 'string',
     multiline: true,
-    defaultValue: 'Generate a comprehensive daily summary...'
+    isYaml: true,
+    defaultValue: `name: Daily News Summary
+description: Generate comprehensive daily summary from selected articles
+stages:
+  - name: daily_summary
+    type: final
+    prompt: |
+      Create a comprehensive daily news summary from the following articles:
+      
+      {articles}
+      
+      Structure:
+      - Top Stories (3-5 most important)
+      - Key Developments by category
+      - Notable mentions
+      - Overall sentiment and trends
+      
+      Keep it informative yet digestible, around 300-500 words.`
   },
   {
     key: 'prompt_cover_image_generation',
-    displayName: 'Cover Image Generation Prompt',
-    description: 'Prompt template for generating cover image descriptions',
+    displayName: 'Cover Image Configuration',
+    description: 'YAML configuration for generating cover image descriptions',
     category: 'AI Prompts',
     type: 'string',
     multiline: true,
-    defaultValue: 'Create a compelling cover image description...'
+    isYaml: true,
+    defaultValue: `name: Cover Image Generation
+description: Generate compelling cover image descriptions for news summaries
+stages:
+  - name: image_description
+    type: final
+    prompt: |
+      Create a compelling cover image description for this news summary:
+      
+      Summary: {summary}
+      Key Topics: {topics}
+      
+      Requirements:
+      - Visual, descriptive language
+      - Appropriate for news content
+      - Professional and engaging
+      - Suitable for AI image generation
+      
+      Provide a clear, detailed description in 1-2 sentences.`
   },
 
   // ===== STORAGE =====
@@ -440,6 +511,53 @@ const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
     category: 'Processing',
     type: 'boolean',
     defaultValue: 'true'
+  },
+  
+  // ===== CHAIN CONFIGURATIONS =====
+  {
+    key: 'chain_article_summary_config',
+    displayName: 'Article Summary Chain Configuration',
+    description: 'YAML configuration for multi-stage article summary chain',
+    category: 'Processing',
+    type: 'string',
+    multiline: true,
+    defaultValue: ''
+  },
+  {
+    key: 'chain_clustering_detection_config',
+    displayName: 'Clustering Detection Chain Configuration', 
+    description: 'YAML configuration for multi-stage clustering detection chain',
+    category: 'Processing',
+    type: 'string',
+    multiline: true,
+    defaultValue: ''
+  },
+  {
+    key: 'chain_event_similarity_config',
+    displayName: 'Event Similarity Chain Configuration',
+    description: 'YAML configuration for event similarity analysis chain',
+    category: 'Processing',
+    type: 'string',
+    multiline: true,
+    defaultValue: ''
+  },
+  {
+    key: 'chain_simple_clustering_config',
+    displayName: 'Simple Clustering Chain Configuration',
+    description: 'YAML configuration for simple clustering fallback chain',
+    category: 'Processing',
+    type: 'string',
+    multiline: true,
+    defaultValue: ''
+  },
+  {
+    key: 'chain_event_naming_config',
+    displayName: 'Event Naming Chain Configuration',
+    description: 'YAML configuration for event naming chain',
+    category: 'Processing',
+    type: 'string',
+    multiline: true,
+    defaultValue: ''
   }
 ];
 
@@ -497,10 +615,12 @@ export default function SettingsPage() {
     daily_summary_prompt: ''
   });
   const [systemSettings, setSystemSettings] = useState<SystemSettingItem[]>([]);
+  const [yamlValidationErrors, setYamlValidationErrors] = useState<{[key: string]: string[]}>({});
   const [originalSystemSettings, setOriginalSystemSettings] = useState<SystemSettingItem[]>([]);
   const [activeTab, setActiveTab] = useState<string>('api-models');
   const [activeUserTab, setActiveUserTab] = useState<string>('preferences');
   const [dailySummaryEnabled, setDailySummaryEnabled] = useState(false); // Default to false for security
+  const [expandedPrompts, setExpandedPrompts] = useState<{[key: string]: boolean}>({});
 
   useEffect(() => {
     fetchData();
@@ -705,6 +825,124 @@ export default function SettingsPage() {
     });
   };
 
+  // Helper function to get setting value
+  const getSettingValue = (key: string): string => {
+    const setting = systemSettings.find(s => s.setting_key === key);
+    return setting?.setting_value || '';
+  };
+
+  // Helper function to check if a setting should use YAML editor
+  const isYamlSetting = (definition: StaticSettingDefinition): boolean => {
+    return definition.isYaml === true;
+  };
+
+  // Helper function to toggle prompt accordion
+  const togglePromptExpanded = (promptKey: string) => {
+    setExpandedPrompts(prev => ({
+      ...prev,
+      [promptKey]: !prev[promptKey]
+    }));
+  };
+
+  // Function to validate YAML syntax
+  const validateYamlSyntax = (yamlContent: string, settingKey: string) => {
+    if (!yamlContent || yamlContent.trim() === '') {
+      setYamlValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[settingKey];
+        return newErrors;
+      });
+      return;
+    }
+
+    try {
+      // Basic YAML structure validation
+      const errors: string[] = [];
+
+      // Check for basic YAML structure indicators
+      if (!yamlContent.includes('name:') && !yamlContent.includes('description:') && !yamlContent.includes('stages:')) {
+        errors.push('YAML should contain basic structure with name, description, and stages');
+      }
+
+      // Check for basic YAML syntax issues
+      let bracketCount = 0;
+      let inString = false;
+      let stringChar = '';
+
+      for (let i = 0; i < yamlContent.length; i++) {
+        const char = yamlContent[i];
+        
+        if (!inString && (char === '"' || char === "'")) {
+          inString = true;
+          stringChar = char;
+        } else if (inString && char === stringChar && yamlContent[i-1] !== '\\') {
+          inString = false;
+          stringChar = '';
+        } else if (!inString) {
+          if (char === '[' || char === '{') bracketCount++;
+          if (char === ']' || char === '}') bracketCount--;
+        }
+      }
+
+      if (bracketCount !== 0) {
+        errors.push('Unmatched brackets or braces');
+      }
+
+      // Set validation errors
+      setYamlValidationErrors(prev => ({
+        ...prev,
+        [settingKey]: errors
+      }));
+
+      // Call backend validation if no basic syntax errors
+      if (errors.length === 0) {
+        validateYamlOnServer(yamlContent, settingKey);
+      }
+
+    } catch (error) {
+      setYamlValidationErrors(prev => ({
+        ...prev,
+        [settingKey]: [`Syntax error: ${error instanceof Error ? error.message : 'Unknown error'}`]
+      }));
+    }
+  };
+
+  // Function to validate YAML on server
+  const validateYamlOnServer = async (yamlContent: string, settingKey: string) => {
+    try {
+      const response = await apiClient.post('/api/admin/validate-chain-yaml', yamlContent, {
+        headers: {
+          'Content-Type': 'text/plain'
+        }
+      });
+
+      if (response.data.valid) {
+        setYamlValidationErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[settingKey];
+          return newErrors;
+        });
+      } else {
+        setYamlValidationErrors(prev => ({
+          ...prev,
+          [settingKey]: response.data.errors || ['Validation failed']
+        }));
+      }
+    } catch (error) {
+      console.error('Server YAML validation failed:', error);
+      // Don't show server errors in UI for now, keep client-side validation
+    }
+  };
+
+  // Function to handle file content loading into editor
+  const handleFileContentLoad = (content: string, fileName: string, promptKey: string) => {
+    // Update the setting value in the local state
+    updateSettingValue(promptKey, content);
+    
+    // Show success message
+    console.log(`Loaded content from ${fileName} into ${promptKey}`);
+  };
+
   // Get static definitions for use in component
   const staticDefinitions = createStaticSettingDefinitions();
 
@@ -876,8 +1114,71 @@ export default function SettingsPage() {
           );
         }
 
-        // Multi-line textarea for prompts or long descriptions
+        // Use YAML editor for YAML settings, regular textarea for others
         if (definition.multiline || definition.key.includes('prompt')) {
+          const isYaml = isYamlSetting(definition);
+          const hasValidationErrors = yamlValidationErrors[definition.key]?.length > 0;
+          
+          if (isYaml) {
+            return (
+              <div>
+                <YamlEditor
+                  value={value}
+                  onChange={(newValue) => {
+                    updateSettingValue(definition.key, newValue);
+                    
+                    // Debounce validation to avoid too many API calls
+                    clearTimeout((window as any)[`yamlTimeout_${definition.key}`]);
+                    (window as any)[`yamlTimeout_${definition.key}`] = setTimeout(() => {
+                      validateYamlSyntax(newValue, definition.key);
+                    }, 1000);
+                  }}
+                  height="400px"
+                  placeholder={definition.defaultValue || `Enter YAML configuration:\nname: Example Chain\ndescription: Description here\nstages:\n  - name: stage1\n    type: final\n    prompt: "Your prompt here"`}
+                  className={hasValidationErrors ? 'border-red-500' : ''}
+                />
+                
+                {/* YAML validation feedback */}
+                <div className="mt-2">
+                  {hasValidationErrors ? (
+                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
+                      <div className="font-medium">YAML Validation Errors:</div>
+                      <ul className="mt-1 list-disc list-inside">
+                        {yamlValidationErrors[definition.key]?.map((error, index) => (
+                          <li key={index}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : value && value.trim() ? (
+                    <div className="text-sm text-green-600 bg-green-50 border border-green-200 rounded p-2">
+                      ✓ YAML syntax appears valid
+                    </div>
+                  ) : null}
+                  
+                  {/* YAML help text */}
+                  <div className="text-xs text-gray-500 mt-2">
+                    <details className="cursor-pointer">
+                      <summary className="font-medium">YAML Chain Configuration Help</summary>
+                      <div className="mt-2 p-2 bg-gray-50 rounded">
+                        <p className="mb-2">Required structure:</p>
+                        <pre className="text-xs bg-white p-2 rounded border">{`name: Chain Name
+description: Chain description
+stages:
+  - name: stage1
+    type: question|final|transform|conditional
+    prompt: "Your prompt template"
+    options: ["option1", "option2"]  # for question type
+    next_stages:  # optional branching
+      option1: next_stage_name`}</pre>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          
+          // Regular textarea for non-YAML multiline settings
           return (
             <textarea
               value={value}
@@ -1486,7 +1787,137 @@ export default function SettingsPage() {
                       {(() => {
                         const tabSettings = getCurrentTabSettings();
 
-                        // Group by model groups within current tab
+                        // Special handling for AI Prompts tab - use accordion display
+                        if (currentTab.id === 'prompts') {
+                          // Group prompt settings by prompt type
+                          const promptGroups: Record<string, typeof tabSettings> = {};
+                          
+                          tabSettings.forEach(item => {
+                            const key = item.definition.key;
+                            let promptType = '';
+                            
+                            if (key.startsWith('prompt_summary_creation')) {
+                              promptType = 'summary_creation';
+                            } else if (key.startsWith('prompt_cluster_detection')) {
+                              promptType = 'cluster_detection';
+                            } else if (key.startsWith('prompt_daily_summary_system')) {
+                              promptType = 'daily_summary_system';
+                            } else if (key.startsWith('prompt_cover_image_generation')) {
+                              promptType = 'cover_image_generation';
+                            }
+                            
+                            if (promptType) {
+                              if (!promptGroups[promptType]) {
+                                promptGroups[promptType] = [];
+                              }
+                              promptGroups[promptType].push(item);
+                            }
+                          });
+                          
+                          const promptTypeInfo = {
+                            summary_creation: { title: 'Article Summary', icon: '📝', description: 'Prompt for generating article summaries' },
+                            cluster_detection: { title: 'Cluster Detection', icon: '🔍', description: 'Prompt for detecting related news events' },
+                            daily_summary_system: { title: 'Daily Summary', icon: '📅', description: 'Prompt for generating daily summaries' },
+                            cover_image_generation: { title: 'Cover Image', icon: '🖼️', description: 'Prompt for cover image descriptions' }
+                          };
+                          
+                          return Object.entries(promptGroups).map(([promptType, groupItems]) => {
+                            const info = promptTypeInfo[promptType as keyof typeof promptTypeInfo];
+                            const isExpanded = expandedPrompts[promptType] || false;
+                            const hasChanges = groupItems.some(item => isSettingChanged(item.definition.key));
+                            
+                            // Filter visible items
+                            const visibleItems = groupItems.filter(item => isSettingVisible(item.definition));
+                            
+                            return (
+                              <div key={promptType} className="border border-gray-200 rounded-lg overflow-hidden">
+                                {/* Accordion Header */}
+                                <button
+                                  onClick={() => togglePromptExpanded(promptType)}
+                                  className={`w-full px-6 py-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors ${
+                                    hasChanges ? 'bg-amber-50 border-l-4 border-l-amber-400' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xl">{info.icon}</span>
+                                    <div>
+                                      <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                        {info.title}
+                                        {hasChanges && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                            Modified
+                                          </span>
+                                        )}
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                          YAML
+                                        </span>
+                                      </h4>
+                                      <p className="text-sm text-gray-600 mt-1">{info.description}</p>
+                                    </div>
+                                  </div>
+                                  {isExpanded ? (
+                                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                                  ) : (
+                                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                                  )}
+                                </button>
+                                
+                                {/* Accordion Content */}
+                                {isExpanded && (
+                                  <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                                    <div className="space-y-4">
+                                      {/* Configuration Editor */}
+                                      {visibleItems.map(({ definition, setting }) => {                                      
+                                        return (
+                                          <div key={definition.key} className="bg-white p-4 rounded-lg border border-gray-200">
+                                            <div className="flex items-center justify-between mb-2">
+                                              <label className="block text-sm font-medium text-gray-700">
+                                                <div className="flex items-center gap-2">
+                                                  {definition.displayName}
+                                                  {isSettingChanged(definition.key) && (
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-200 text-amber-800">
+                                                      ✏️ Modified
+                                                    </span>
+                                                  )}
+                                                  {definition.isYaml && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                                      YAML Configuration
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </label>
+                                              
+                                              {/* File Selector for YAML settings */}
+                                              {definition.isYaml && (
+                                                <FileSelector
+                                                  onFileSelect={(content, fileName) => 
+                                                    handleFileContentLoad(content, fileName, definition.key)
+                                                  }
+                                                  acceptedTypes={['.yaml', '.yml', '.txt']}
+                                                  className="flex-shrink-0"
+                                                />
+                                              )}
+                                            </div>
+                                            
+                                            {renderSettingInput(definition, setting)}
+                                            
+                                            {definition.description && (
+                                              <p className="text-xs text-gray-500 mt-2">
+                                                {definition.description}
+                                              </p>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          });
+                        }
+                        
+                        // Default handling for other tabs - use existing group logic
                         const modelGroups: Record<string, typeof tabSettings> = { '': [] };
 
                         tabSettings.forEach(item => {

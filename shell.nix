@@ -11,6 +11,7 @@ in pkgs.mkShell {
     pkgs.pnpm
     pkgs.libz
     pkgs.stdenv.cc.cc.lib
+    pkgs.cloc
   ];
   shellHook = ''
     export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath ([
