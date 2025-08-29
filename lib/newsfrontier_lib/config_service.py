@@ -366,6 +366,10 @@ def set_encrypted_setting(key: str, value: str, description: str = None, is_publ
 class ConfigKeys:
     """Common configuration key constants."""
     
+    # LLM Provider Configuration
+    DEFAULT_LLM_PROVIDER = 'default_llm_provider'
+    CUSTOM_LLM_API_URL = 'custom_llm_api_url'
+    
     # LLM Configuration
     LLM_SUMMARY_MODEL = 'llm_summary_model'
     LLM_ANALYSIS_MODEL = 'llm_analysis_model' 
@@ -375,6 +379,7 @@ class ConfigKeys:
     # Encrypted API Keys
     GOOGLE_API_KEY = 'google_api_key_encrypted'
     OPENAI_API_KEY = 'openai_api_key_encrypted'
+    ANTHROPIC_API_KEY = 'anthropic_api_key_encrypted'
     
     # LLM API Endpoints
     LLM_API_URL = 'llm_api_url'

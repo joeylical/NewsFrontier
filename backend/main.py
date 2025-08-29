@@ -1032,6 +1032,8 @@ async def get_articles(
     page: int = 1,
     limit: int = 20,
     status: str = "completed",  # Default to completed articles only
+    feed_id: Optional[int] = None,  # Filter by RSS feed ID
+    author: Optional[str] = None,  # Filter by author name
     username: str = Depends(verify_token),
     db = Depends(get_session)
 ):
@@ -1048,22 +1050,64 @@ async def get_articles(
     # Calculate skip for pagination
     skip = (page - 1) * limit
     
-    # Get articles from database
+    # Get articles from database with filters
     from sqlalchemy import func
-    total_query = db.query(func.count(RSSItemMetadata.id)).filter(
-        RSSItemMetadata.processing_status == status
-    )
-    total = total_query.scalar()
+    from sqlalchemy.orm import joinedload
     
-    articles_query = db.query(RSSItemMetadata).filter(
-        RSSItemMetadata.processing_status == status
-    ).order_by(RSSItemMetadata.created_at.desc()).offset(skip).limit(limit)
+    # Build base query with joins if needed
+    base_filters = [RSSItemMetadata.processing_status == status]
+    
+    # Add feed filter if specified
+    if feed_id is not None:
+        base_filters.append(RSSFetchRecord.rss_feed_id == feed_id)
+    
+    # Add author filter if specified  
+    if author is not None:
+        base_filters.append(RSSItemMetadata.author == author)
+    
+    # Build queries with proper joins
+    if feed_id is not None:
+        # Need to join with RSSFetchRecord when filtering by feed
+        total_query = db.query(func.count(RSSItemMetadata.id)).join(
+            RSSFetchRecord, RSSItemMetadata.rss_fetch_record_id == RSSFetchRecord.id
+        ).filter(*base_filters)
+        
+        articles_query = db.query(RSSItemMetadata).join(
+            RSSFetchRecord, RSSItemMetadata.rss_fetch_record_id == RSSFetchRecord.id
+        ).join(
+            RSSFeed, RSSFetchRecord.rss_feed_id == RSSFeed.id
+        ).options(
+            joinedload(RSSItemMetadata.fetch_record).joinedload(RSSFetchRecord.rss_feed)
+        ).filter(*base_filters).order_by(RSSItemMetadata.created_at.desc()).offset(skip).limit(limit)
+    else:
+        # No feed filter, still need to load RSS feed info
+        total_query = db.query(func.count(RSSItemMetadata.id)).filter(*base_filters)
+        articles_query = db.query(RSSItemMetadata).options(
+            joinedload(RSSItemMetadata.fetch_record).joinedload(RSSFetchRecord.rss_feed)
+        ).filter(*base_filters).order_by(
+            RSSItemMetadata.created_at.desc()
+        ).offset(skip).limit(limit)
+    
+    total = total_query.scalar()
     
     db_articles = articles_query.all()
     
-    # Convert to Pydantic models
-    articles = [
-        Article(
+    # Convert to Pydantic models with RSS feed information
+    articles = []
+    for article in db_articles:
+        # Get RSS feed info if available
+        rss_feed_info = None
+        if hasattr(article, 'fetch_record') and article.fetch_record:
+            rss_feed = article.fetch_record.rss_feed
+            if rss_feed:
+                rss_feed_info = {
+                    "id": rss_feed.id,
+                    "title": rss_feed.title,
+                    "url": rss_feed.url
+                }
+        
+        # Create Article object
+        article_data = Article(
             id=article.id,
             title=article.title,
             content=article.content,
@@ -1074,8 +1118,12 @@ async def get_articles(
             processing_status=article.processing_status,
             created_at=article.created_at.isoformat() + "Z"
         )
-        for article in db_articles
-    ]
+        
+        # Add RSS feed info as additional data
+        if rss_feed_info:
+            article_data.rss_feed = rss_feed_info
+        
+        articles.append(article_data)
     
     # Create pagination info
     has_next = skip + limit < total
@@ -1093,6 +1141,41 @@ async def get_articles(
         data=articles,
         pagination=pagination
     )
+
+@app.get("/api/rss-feeds")
+async def get_user_rss_feeds(
+    username: str = Depends(verify_token),
+    db = Depends(get_session)
+):
+    """Get user's subscribed RSS feeds"""
+    # Get user
+    from newsfrontier_lib.models import User
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get user's RSS subscriptions with feed info
+    subscriptions = db.query(RSSSubscription).join(
+        RSSFeed, RSSSubscription.rss_uuid == RSSFeed.uuid
+    ).filter(
+        RSSSubscription.user_id == user.id,
+        RSSSubscription.is_active == True
+    ).options(
+        joinedload(RSSSubscription.rss_feed)
+    ).all()
+    
+    feeds = []
+    for subscription in subscriptions:
+        if subscription.rss_feed:
+            feeds.append({
+                "id": subscription.rss_feed.id,
+                "title": subscription.rss_feed.title or subscription.rss_feed.url,
+                "url": subscription.rss_feed.url,
+                "alias": subscription.alias,
+                "is_active": subscription.is_active
+            })
+    
+    return {"data": feeds}
 
 @app.get("/api/article/{article_id}")
 async def get_article_detail(

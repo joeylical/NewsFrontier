@@ -523,53 +523,6 @@ stages:
     category: 'Processing',
     type: 'boolean',
     defaultValue: 'true'
-  },
-  
-  // ===== CHAIN CONFIGURATIONS =====
-  {
-    key: 'chain_article_summary_config',
-    displayName: 'Article Summary Chain Configuration',
-    description: 'YAML configuration for multi-stage article summary chain',
-    category: 'Processing',
-    type: 'string',
-    multiline: true,
-    defaultValue: ''
-  },
-  {
-    key: 'chain_clustering_detection_config',
-    displayName: 'Clustering Detection Chain Configuration', 
-    description: 'YAML configuration for multi-stage clustering detection chain',
-    category: 'Processing',
-    type: 'string',
-    multiline: true,
-    defaultValue: ''
-  },
-  {
-    key: 'chain_event_similarity_config',
-    displayName: 'Event Similarity Chain Configuration',
-    description: 'YAML configuration for event similarity analysis chain',
-    category: 'Processing',
-    type: 'string',
-    multiline: true,
-    defaultValue: ''
-  },
-  {
-    key: 'chain_simple_clustering_config',
-    displayName: 'Simple Clustering Chain Configuration',
-    description: 'YAML configuration for simple clustering fallback chain',
-    category: 'Processing',
-    type: 'string',
-    multiline: true,
-    defaultValue: ''
-  },
-  {
-    key: 'chain_event_naming_config',
-    displayName: 'Event Naming Chain Configuration',
-    description: 'YAML configuration for event naming chain',
-    category: 'Processing',
-    type: 'string',
-    multiline: true,
-    defaultValue: ''
   }
 ];
 

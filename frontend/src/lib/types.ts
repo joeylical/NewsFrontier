@@ -56,6 +56,11 @@ export interface Article {
   processing_status: 'pending' | 'processing' | 'completed' | 'failed';
   created_at: string;
   derivative?: ArticleDerivative;
+  rss_feed?: {
+    id: number;
+    title: string;
+    url: string;
+  };
 }
 
 export interface Cluster {

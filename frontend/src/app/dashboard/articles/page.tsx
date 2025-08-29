@@ -9,7 +9,7 @@ import { API_ENDPOINTS, PAGINATION } from '@/lib/constants';
 import { Article, ApiResponse } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { formatDate, stripHtmlTags } from '@/lib/utils';
-import { FileText, User, Clock, TrendingUp } from 'lucide-react';
+import { FileText, User, Clock, TrendingUp, Filter, Rss } from 'lucide-react';
 
 
 export default function ArticlesPage() {
@@ -21,6 +21,10 @@ export default function ArticlesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [selectedFeedId, setSelectedFeedId] = useState<number | null>(null);
+  const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null);
+  const [rssFeeds, setRssFeeds] = useState<any[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     // Redirect admin users to system settings
@@ -30,7 +34,8 @@ export default function ArticlesPage() {
     }
     
     fetchArticles();
-  }, [currentPage, user, router]);
+    fetchRssFeeds();
+  }, [currentPage, user, router, selectedFeedId, selectedAuthor]);
 
   const fetchArticles = async () => {
     try {
@@ -40,6 +45,14 @@ export default function ArticlesPage() {
         limit: PAGINATION.DEFAULT_LIMIT.toString(),
         status: 'completed', // Only fetch completed articles
       });
+      
+      // Add filter parameters if set
+      if (selectedFeedId) {
+        params.append('feed_id', selectedFeedId.toString());
+      }
+      if (selectedAuthor) {
+        params.append('author', selectedAuthor);
+      }
 
       const response = await apiClient.get<ApiResponse<Article[]>>(`${API_ENDPOINTS.ARTICLES.LIST}?${params}`);
       
@@ -60,6 +73,38 @@ export default function ArticlesPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchRssFeeds = async () => {
+    try {
+      const response = await apiClient.get('/api/rss-feeds');
+      setRssFeeds(response.data || []);
+    } catch (err) {
+      console.error('Failed to fetch RSS feeds:', err);
+    }
+  };
+
+  // Helper function to check if article is from today
+  const isToday = (publishedAt: string | undefined): boolean => {
+    if (!publishedAt) return false;
+    const articleDate = new Date(publishedAt);
+    const today = new Date();
+    return articleDate.toDateString() === today.toDateString();
+  };
+
+  // Handler for author click
+  const handleAuthorClick = (authorName: string, feedId: number) => {
+    setSelectedAuthor(authorName);
+    setSelectedFeedId(feedId);
+    setCurrentPage(1);
+    setShowFilters(true);
+  };
+
+  // Handler for feed selection
+  const handleFeedSelection = (feedId: number | null) => {
+    setSelectedFeedId(feedId);
+    setSelectedAuthor(null); // Clear author filter when changing feed
+    setCurrentPage(1);
   };
 
   const getStatusBadge = (status: string) => {
@@ -95,6 +140,22 @@ export default function ArticlesPage() {
             </p>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-4 py-2 border rounded transition-colors flex items-center gap-2 ${
+                showFilters || selectedFeedId || selectedAuthor
+                  ? 'border-blue-500 text-blue-700 bg-blue-50'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+              {(selectedFeedId || selectedAuthor) && (
+                <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+                  {(selectedFeedId ? 1 : 0) + (selectedAuthor ? 1 : 0)}
+                </span>
+              )}
+            </button>
             <Link
               href="/dashboard/topics"
               className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 transition-colors"
@@ -109,6 +170,61 @@ export default function ArticlesPage() {
             </Link>
           </div>
         </div>
+        
+        {/* Filter Controls */}
+        {showFilters && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <div className="flex flex-wrap gap-4 items-center">
+              {/* RSS Feed Filter */}
+              <div className="flex items-center gap-2">
+                <Rss className="w-4 h-4 text-gray-600" />
+                <select
+                  value={selectedFeedId || ''}
+                  onChange={(e) => handleFeedSelection(e.target.value ? parseInt(e.target.value) : null)}
+                  className="border border-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Sources</option>
+                  {rssFeeds.map((feed) => (
+                    <option key={feed.id} value={feed.id}>
+                      {feed.title || feed.url}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Active Filters */}
+              {selectedAuthor && (
+                <div className="flex items-center gap-2 bg-white px-3 py-1 rounded border">
+                  <User className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm">Author: {selectedAuthor}</span>
+                  <button
+                    onClick={() => {
+                      setSelectedAuthor(null);
+                      setCurrentPage(1);
+                    }}
+                    className="text-gray-400 hover:text-gray-600 ml-1"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              
+              {/* Clear All Filters */}
+              {(selectedFeedId || selectedAuthor) && (
+                <button
+                  onClick={() => {
+                    setSelectedFeedId(null);
+                    setSelectedAuthor(null);
+                    setCurrentPage(1);
+                  }}
+                  className="text-sm text-gray-600 hover:text-gray-800 underline"
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
 
@@ -163,17 +279,31 @@ export default function ArticlesPage() {
                     </Link>
 
                     {/* Metadata */}
-                    <div className="flex items-center gap-6 text-sm text-gray-600 mb-3">
+                    <div className="flex items-center gap-6 text-sm text-gray-600 mb-3 flex-wrap">
                       {article.author && (
-                        <span className="flex items-center gap-1">
+                        <button
+                          onClick={() => article.rss_feed && handleAuthorClick(article.author!, article.rss_feed.id)}
+                          className="flex items-center gap-1 hover:text-blue-600 transition-colors cursor-pointer"
+                        >
                           <User className="w-4 h-4" />
                           {article.author}
-                        </span>
+                        </button>
                       )}
                       {article.published_at && (
                         <span className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />
                           {formatDate(article.published_at)}
+                          {isToday(article.published_at) && (
+                            <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                              NEW
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      {article.rss_feed && (
+                        <span className="flex items-center gap-1">
+                          <Rss className="w-4 h-4" />
+                          <span className="text-xs text-gray-500">{article.rss_feed.title || 'RSS Feed'}</span>
                         </span>
                       )}
                       {article.category && (

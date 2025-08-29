@@ -7,6 +7,32 @@
     "cluster_threshold": 0.75,
     "max_articles_per_event": 50
   },
+  "api_models": {
+    "default_llm_provider": "openai",
+    "custom_llm_api_url": "https://api.openai.com/v1",
+    "llm_summary_model": "gpt-3.5-turbo",
+    "llm_summary_use_default": "true",
+    "llm_analysis_model": "gpt-4",
+    "llm_analysis_use_default": "true",
+    "llm_embedding_model": "text-embedding-ada-002",
+    "llm_embedding_use_default": "true",
+    "llm_image_model": "dall-e-3",
+    "llm_image_use_default": "true"
+  },
+  "features": {
+    "daily_summary_enabled": "true",
+    "daily_summary_cover_enabled": "true"
+  },
+  "processing": {
+    "scraper_interval_minutes": 60,
+    "postprocess_interval_minutes": 30,
+    "max_article_age_days": 7,
+    "batch_processing_size": 20,
+    "batch_processing_enabled": "true"
+  },
+  "storage": {
+    "s3_region": "us-east-1"
+  },
   "prompts": {
     "summary_creation": "prompts/summary_creation.txt",
     "cluster_detection": "prompts/cluster_detection.txt",

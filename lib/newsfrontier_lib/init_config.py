@@ -35,31 +35,47 @@ def init_default_settings() -> bool:
         
         # Default configuration settings
         default_settings = [
+            # LLM Provider Configuration
+            {
+                'key': ConfigKeys.DEFAULT_LLM_PROVIDER,
+                'value': 'openai',
+                'type': 'string',
+                'description': 'Default LLM provider (openai, anthropic, google, azure, custom)',
+                'public': False
+            },
+            {
+                'key': ConfigKeys.CUSTOM_LLM_API_URL,
+                'value': 'https://api.openai.com/v1',
+                'type': 'string',
+                'description': 'Custom API base URL (used when provider is custom)',
+                'public': False
+            },
+            
             # LLM Model Configuration
             {
                 'key': ConfigKeys.LLM_SUMMARY_MODEL,
-                'value': 'gemini-2.0-flash-lite',
+                'value': 'gpt-3.5-turbo',
                 'type': 'string',
                 'description': 'LLM model for article summaries (fast, efficient)',
                 'public': True
             },
             {
                 'key': ConfigKeys.LLM_ANALYSIS_MODEL,
-                'value': 'gemini-2.5-pro',
+                'value': 'gpt-4',
                 'type': 'string',
                 'description': 'LLM model for analysis tasks (cluster detection, daily summaries)',
                 'public': True
             },
             {
                 'key': ConfigKeys.LLM_EMBEDDING_MODEL,
-                'value': 'text-embedding-004',
+                'value': 'text-embedding-ada-002',
                 'type': 'string',
                 'description': 'Model for generating embeddings',
                 'public': True
             },
             {
                 'key': ConfigKeys.LLM_IMAGE_MODEL,
-                'value': 'imagen-3.0-generate-002',
+                'value': 'dall-e-3',
                 'type': 'string',
                 'description': 'Model for image generation',
                 'public': True

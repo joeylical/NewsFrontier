@@ -45,6 +45,10 @@ def main():
         cluster_threshold = db_config['cluster_threshold']
         max_articles_per_event = db_config['max_articles_per_event']
         
+        api_models_config = config['api_models']
+        features_config = config['features']
+        processing_config = config['processing']
+        storage_config = config['storage']
         prompts_config = config['prompts']
     except KeyError as e:
         print(f"Error: Missing configuration key: {e}")
@@ -57,6 +61,15 @@ def main():
     print(f"  - Similarity threshold: {similarity_threshold}")
     print(f"  - Cluster threshold: {cluster_threshold}")
     print(f"  - Max articles per event: {max_articles_per_event}")
+    print(f"  - Default LLM provider: {api_models_config['default_llm_provider']}")
+    print(f"  - Summary model: {api_models_config['llm_summary_model']}")
+    print(f"  - Analysis model: {api_models_config['llm_analysis_model']}")
+    print(f"  - Embedding model: {api_models_config['llm_embedding_model']}")
+    print(f"  - Image model: {api_models_config['llm_image_model']}")
+    print(f"  - Daily summary enabled: {features_config['daily_summary_enabled']}")
+    print(f"  - Scraper interval: {processing_config['scraper_interval_minutes']} minutes")
+    print(f"  - Batch processing enabled: {processing_config['batch_processing_enabled']}")
+    print(f"  - S3 region: {storage_config['s3_region']}")
     
     # Function to read prompt content and convert to YAML format if needed
     def read_prompt(prompt_file, prompt_name):
@@ -129,12 +142,39 @@ stages:
     
     # Replace placeholders
     replacements = {
+        # Database configuration
         'EMBEDDING_DIMENSION': str(embedding_dimension),
         'DEFAULT_RSS_FETCH_INTERVAL': str(default_rss_fetch_interval),
         'MAX_PROCESSING_ATTEMPTS': str(max_processing_attempts),
         'SIMILARITY_THRESHOLD': str(similarity_threshold),
         'CLUSTER_THRESHOLD': str(cluster_threshold),
         'MAX_ARTICLES_PER_EVENT': str(max_articles_per_event),
+        
+        # API Models configuration
+        'DEFAULT_LLM_PROVIDER': api_models_config['default_llm_provider'],
+        'CUSTOM_LLM_API_URL': api_models_config['custom_llm_api_url'],
+        'LLM_SUMMARY_MODEL': api_models_config['llm_summary_model'],
+        'LLM_SUMMARY_USE_DEFAULT': api_models_config['llm_summary_use_default'],
+        'LLM_ANALYSIS_MODEL': api_models_config['llm_analysis_model'],
+        'LLM_ANALYSIS_USE_DEFAULT': api_models_config['llm_analysis_use_default'],
+        'LLM_EMBEDDING_MODEL': api_models_config['llm_embedding_model'],
+        'LLM_EMBEDDING_USE_DEFAULT': api_models_config['llm_embedding_use_default'],
+        'LLM_IMAGE_MODEL': api_models_config['llm_image_model'],
+        'LLM_IMAGE_USE_DEFAULT': api_models_config['llm_image_use_default'],
+        
+        # Features configuration
+        'DAILY_SUMMARY_ENABLED': features_config['daily_summary_enabled'],
+        'DAILY_SUMMARY_COVER_ENABLED': features_config['daily_summary_cover_enabled'],
+        
+        # Processing configuration
+        'SCRAPER_INTERVAL_MINUTES': str(processing_config['scraper_interval_minutes']),
+        'POSTPROCESS_INTERVAL_MINUTES': str(processing_config['postprocess_interval_minutes']),
+        'MAX_ARTICLE_AGE_DAYS': str(processing_config['max_article_age_days']),
+        'BATCH_PROCESSING_SIZE': str(processing_config['batch_processing_size']),
+        'BATCH_PROCESSING_ENABLED': processing_config['batch_processing_enabled'],
+        
+        # Storage configuration
+        'S3_REGION': storage_config['s3_region'],
     }
     
     # Add prompts to replacements
