@@ -157,6 +157,21 @@ class ChainLoader:
         
         return params
     
+    def get_stage_model_config(self, stage: Dict[str, Any]) -> Dict[str, Optional[str]]:
+        """
+        Extract model configuration from a stage.
+        
+        Args:
+            stage: Stage configuration dictionary
+            
+        Returns:
+            Dictionary with 'model_name' and 'model_type' keys
+        """
+        return {
+            'model_name': stage.get('model_name'),
+            'model_type': stage.get('model_type', 'chat')  # Default to chat type
+        }
+    
     def _parse_and_validate_yaml(self, yaml_content: str, chain_name: str) -> Optional[Dict[str, Any]]:
         """
         Parse and validate YAML chain configuration.
@@ -241,6 +256,25 @@ class ChainLoader:
         # Validate LLM parameters if present
         if 'llm_params' in stage:
             self._validate_llm_params(stage['llm_params'], chain_name, stage['name'])
+        
+        # Validate model configuration if present
+        if 'model_name' in stage:
+            if not isinstance(stage['model_name'], str):
+                raise ChainValidationError(
+                    f"model_name in stage '{stage['name']}' of chain '{chain_name}' must be a string"
+                )
+        
+        if 'model_type' in stage:
+            if not isinstance(stage['model_type'], str):
+                raise ChainValidationError(
+                    f"model_type in stage '{stage['name']}' of chain '{chain_name}' must be a string"
+                )
+            valid_types = {'chat', 'embedding', 'image', 'audio', 'transcript'}
+            if stage['model_type'] not in valid_types:
+                raise ChainValidationError(
+                    f"model_type '{stage['model_type']}' in stage '{stage['name']}' of chain '{chain_name}' "
+                    f"must be one of: {', '.join(valid_types)}"
+                )
         
         # Validate stage-specific requirements
         if stage['type'] == 'question':

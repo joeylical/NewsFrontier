@@ -215,6 +215,44 @@ class SystemSettingResponse(SystemSettingBase):
     created_at: datetime
 
 
+# LLM Model schemas
+class LLMModelBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$')
+    model_type: str = Field(..., pattern=r'^(chat|embedding|image|audio|transcript)$')
+    provider: str = Field(..., min_length=1, max_length=100, description="LiteLLM provider name")
+    model_name: str = Field(..., min_length=1, max_length=200)
+    api_base_url: Optional[str] = Field(None, max_length=500)
+    is_active: bool = True
+    config_json: Optional[str] = None
+    description: Optional[str] = None
+
+class LLMModelCreate(LLMModelBase):
+    api_key: Optional[str] = Field(None, description="API key (will be encrypted)")
+
+class LLMModelUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100, pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$')
+    model_type: Optional[str] = Field(None, pattern=r'^(chat|embedding|image|audio|transcript)$')
+    provider: Optional[str] = Field(None, min_length=1, max_length=100, description="LiteLLM provider name")
+    model_name: Optional[str] = Field(None, min_length=1, max_length=200)
+    api_key: Optional[str] = Field(None, description="API key (will be encrypted)")
+    api_base_url: Optional[str] = Field(None, max_length=500)
+    is_active: Optional[bool] = None
+    config_json: Optional[str] = None
+    description: Optional[str] = None
+
+class LLMModelResponse(LLMModelBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    has_api_key: bool = Field(..., description="Whether an API key is configured")
+    created_at: datetime
+    updated_at: datetime
+
+class LLMModelListResponse(BaseModel):
+    models: List[LLMModelResponse]
+    total: int
+
+
 # Authentication schemas
 class LoginRequest(BaseModel):
     username: str

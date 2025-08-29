@@ -7,20 +7,50 @@
     "cluster_threshold": 0.75,
     "max_articles_per_event": 50
   },
-  "api_models": {
-    "default_llm_provider": "openai",
-    "custom_llm_api_url": "https://api.openai.com/v1",
-    "llm_summary_model": "gpt-3.5-turbo",
-    "llm_summary_use_default": "true",
-    "llm_analysis_model": "gpt-4",
-    "llm_analysis_use_default": "true",
-    "llm_embedding_model": "text-embedding-ada-002",
-    "llm_embedding_use_default": "true",
-    "llm_image_model": "dall-e-3",
-    "llm_image_use_default": "true"
-  },
+  "llm_models": [
+    {
+      "name": "default_chat",
+      "model_type": "chat",
+      "provider": "openai",
+      "model_name": "gpt-3.5-turbo",
+      "is_active": true,
+      "description": "Default chat model for conversations and text generation"
+    },
+    {
+      "name": "default_embedding",
+      "model_type": "embedding", 
+      "provider": "openai",
+      "model_name": "text-embedding-ada-002",
+      "is_active": true,
+      "description": "Default embedding model for vector operations"
+    },
+    {
+      "name": "advanced_chat",
+      "model_type": "chat",
+      "provider": "openai", 
+      "model_name": "gpt-4",
+      "is_active": true,
+      "description": "Advanced chat model for complex reasoning tasks"
+    },
+    {
+      "name": "large_embedding",
+      "model_type": "embedding",
+      "provider": "openai",
+      "model_name": "text-embedding-3-large", 
+      "is_active": true,
+      "description": "Large embedding model for high-quality vectors"
+    },
+    {
+      "name": "default_image",
+      "model_type": "image",
+      "provider": "openai",
+      "model_name": "dall-e-3",
+      "is_active": true,
+      "description": "Default image generation model for creating visual content"
+    }
+  ],
   "features": {
-    "daily_summary_enabled": "true",
+    "daily_summary_enabled": "false",
     "daily_summary_cover_enabled": "true"
   },
   "processing": {

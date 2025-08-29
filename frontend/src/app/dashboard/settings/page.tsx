@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import Modal from '@/components/Modal';
 import YamlEditor from '@/components/YamlEditor';
 import FileSelector from '@/components/FileSelector';
+import LLMModelManager from '@/components/LLMModelManager';
 import { useAuth } from '@/lib/auth-context';
 import { Check, X, ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -58,204 +59,8 @@ interface StaticSettingDefinition {
   defaultValue?: string;
 }
 
-// Static configuration definitions - all display logic in frontend
+// Static configuration definitions - all display logic in frontend  
 const createStaticSettingDefinitions = (): StaticSettingDefinition[] => [
-  // ===== DEFAULT API CONFIGURATION =====
-  {
-    key: 'default_llm_provider',
-    displayName: 'Default API Provider',
-    description: 'Default API provider for all LLM services',
-    category: 'API & Models Configuration',
-    type: 'string',
-    options: ['openai', 'anthropic', 'google', 'azure', 'custom'],
-    defaultValue: 'openai'
-  },
-  {
-    key: 'default_llm_api_url',
-    displayName: 'Default API Base URL',
-    description: 'Default API endpoint URL (auto-filled based on provider)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    dependsOn: 'default_llm_provider',
-    dependsValue: 'custom',
-    defaultValue: 'https://api.openai.com/v1'
-  },
-  {
-    key: 'default_llm_api_key_encrypted',
-    displayName: 'Default API Key',
-    description: 'Default API key for LLM services',
-    category: 'API & Models Configuration',
-    type: 'string',
-    isEncrypted: true
-  },
-
-  // ===== SUMMARY MODEL =====
-  {
-    key: 'llm_summary_model',
-    displayName: 'Article Summary Model',
-    description: 'Model name for article summaries (e.g. gpt-3.5-turbo, gemini-2.0-flash-lite)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'summary',
-    defaultValue: 'gpt-3.5-turbo'
-  },
-  {
-    key: 'llm_summary_use_default',
-    displayName: 'Use Default API',
-    description: 'Use default API configuration for summary model',
-    category: 'API & Models Configuration',
-    type: 'boolean',
-    modelGroup: 'summary',
-    defaultValue: 'true'
-  },
-  {
-    key: 'llm_summary_api_url',
-    displayName: 'Custom API Base URL',
-    description: 'Custom API endpoint for summary model (if not using default)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'summary',
-    dependsOn: 'llm_summary_use_default',
-    dependsNotValue: 'true'
-  },
-  {
-    key: 'llm_summary_api_key_encrypted',
-    displayName: 'Custom API Key',
-    description: 'Custom API key for summary model (if not using default)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'summary',
-    dependsOn: 'llm_summary_use_default',
-    dependsNotValue: 'true',
-    isEncrypted: true,
-    isSeparatorAfter: true
-  },
-
-  // ===== ANALYSIS MODEL =====
-  {
-    key: 'llm_analysis_model',
-    displayName: 'Analysis Model',
-    description: 'Model name for analysis tasks (e.g. gpt-4, gemini-2.5-pro)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'analysis',
-    defaultValue: 'gpt-4'
-  },
-  {
-    key: 'llm_analysis_use_default',
-    displayName: 'Use Default API',
-    description: 'Use default API configuration for analysis model',
-    category: 'API & Models Configuration',
-    type: 'boolean',
-    modelGroup: 'analysis',
-    defaultValue: 'true'
-  },
-  {
-    key: 'llm_analysis_api_url',
-    displayName: 'Custom API Base URL',
-    description: 'Custom API endpoint for analysis model (if not using default)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'analysis',
-    dependsOn: 'llm_analysis_use_default',
-    dependsNotValue: 'true'
-  },
-  {
-    key: 'llm_analysis_api_key_encrypted',
-    displayName: 'Custom API Key',
-    description: 'Custom API key for analysis model (if not using default)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'analysis',
-    dependsOn: 'llm_analysis_use_default',
-    dependsNotValue: 'true',
-    isEncrypted: true,
-    isSeparatorAfter: true
-  },
-
-  // ===== EMBEDDING MODEL =====
-  {
-    key: 'llm_embedding_model',
-    displayName: 'Embedding Model',
-    description: 'Model name for embeddings (e.g. text-embedding-ada-002, text-embedding-004)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'embedding',
-    defaultValue: 'text-embedding-ada-002'
-  },
-  {
-    key: 'llm_embedding_use_default',
-    displayName: 'Use Default API',
-    description: 'Use default API configuration for embedding model',
-    category: 'API & Models Configuration',
-    type: 'boolean',
-    modelGroup: 'embedding',
-    defaultValue: 'true'
-  },
-  {
-    key: 'llm_embedding_api_url',
-    displayName: 'Custom API Base URL',
-    description: 'Custom API endpoint for embedding model (if not using default)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'embedding',
-    dependsOn: 'llm_embedding_use_default',
-    dependsNotValue: 'true'
-  },
-  {
-    key: 'llm_embedding_api_key_encrypted',
-    displayName: 'Custom API Key',
-    description: 'Custom API key for embedding model (if not using default)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'embedding',
-    dependsOn: 'llm_embedding_use_default',
-    dependsNotValue: 'true',
-    isEncrypted: true,
-    isSeparatorAfter: true
-  },
-
-  // ===== IMAGE MODEL =====
-  {
-    key: 'llm_image_model',
-    displayName: 'Image Generation Model',
-    description: 'Model name for image generation (e.g. dall-e-3, imagen-3.0-generate-002)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'image',
-    defaultValue: 'dall-e-3'
-  },
-  {
-    key: 'llm_image_use_default',
-    displayName: 'Use Default API',
-    description: 'Use default API configuration for image model',
-    category: 'API & Models Configuration',
-    type: 'boolean',
-    modelGroup: 'image',
-    defaultValue: 'true'
-  },
-  {
-    key: 'llm_image_api_url',
-    displayName: 'Custom API Base URL',
-    description: 'Custom API endpoint for image model (if not using default)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'image',
-    dependsOn: 'llm_image_use_default',
-    dependsNotValue: 'true'
-  },
-  {
-    key: 'llm_image_api_key_encrypted',
-    displayName: 'Custom API Key',
-    description: 'Custom API key for image model (if not using default)',
-    category: 'API & Models Configuration',
-    type: 'string',
-    modelGroup: 'image',
-    dependsOn: 'llm_image_use_default',
-    dependsNotValue: 'true',
-    isEncrypted: true,
-    isSeparatorAfter: true
-  },
 
   // ===== AI FEATURES =====
   {
@@ -531,7 +336,7 @@ export default function SettingsPage() {
 
   // Define tab configuration first
   const settingTabs = [
-    { id: 'api-models', label: 'API & Models', icon: '🤖', category: 'API & Models Configuration' },
+    { id: 'api-models', label: 'API & Models', icon: '🤖', category: 'LLM Models' }, // Special category for new model manager
     { id: 'ai-features', label: 'AI Features', icon: '⚡', category: 'AI Features' },
     { id: 'prompts', label: 'AI Prompts', icon: '💬', category: 'AI Prompts' },
     { id: 'storage', label: 'Storage', icon: '💾', category: 'Storage' },
@@ -1304,7 +1109,7 @@ stages:
   // Get description for each tab
   const getTabDescription = (tabId: string): string => {
     const descriptions = {
-      'api-models': 'Configure API providers, credentials, and model settings for all AI services',
+      'api-models': 'Manage multiple LLM models with different providers, API keys, and configurations for various AI tasks',
       'ai-features': 'Enable or disable AI-powered features like daily summaries and cover images',
       'prompts': 'Customize AI prompts used for content generation and analysis',
       'storage': 'Configure S3 storage settings for images and file uploads',
@@ -1672,9 +1477,12 @@ stages:
               <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
                 {settingTabs.map((tab) => {
                   const isActive = activeTab === tab.id;
-                  // Check if this tab has any modified settings
-                  const tabSettings = staticDefinitions.filter(def => def.category === tab.category);
-                  const hasTabChanges = tabSettings.some(def => isSettingChanged(def.key));
+                  // Check if this tab has any modified settings (skip for api-models as it's handled separately)
+                  let hasTabChanges = false;
+                  if (tab.id !== 'api-models') {
+                    const tabSettings = staticDefinitions.filter(def => def.category === tab.category);
+                    hasTabChanges = tabSettings.some(def => isSettingChanged(def.key));
+                  }
 
                   return (
                     <button
@@ -1737,25 +1545,35 @@ stages:
                             {getTabDescription(currentTab.id)}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {getCurrentTabSettings().length} settings
-                          </span>
-                          {(() => {
-                            const changedInTab = getCurrentTabSettings().filter(item => isSettingChanged(item.definition.key));
-                            return changedInTab.length > 0 ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                {changedInTab.length} modified
-                              </span>
-                            ) : null;
-                          })()}
-                        </div>
+                        {currentTab.id !== 'api-models' && (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {getCurrentTabSettings().length} settings
+                            </span>
+                            {(() => {
+                              const changedInTab = getCurrentTabSettings().filter(item => isSettingChanged(item.definition.key));
+                              return changedInTab.length > 0 ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                  {changedInTab.length} modified
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Tab Content */}
                     <div className="space-y-6">
-                      {(() => {
+                      {/* Special handling for API & Models tab to show LLM Model Manager */}
+                      {currentTab.id === 'api-models' ? (
+                        <LLMModelManager 
+                          onModelChange={() => {
+                            // Refresh system settings when models change
+                            fetchSystemSettings();
+                          }} 
+                        />
+                      ) : (() => {
                         const tabSettings = getCurrentTabSettings();
 
                         // Special handling for AI Prompts tab - use accordion display
@@ -1962,11 +1780,10 @@ stages:
                             </div>
                           );
                         });
-                      })()
-                      }
+                      })()}
 
-                      {/* Empty state for tabs with no settings */}
-                      {getCurrentTabSettings().length === 0 && (
+                      {/* Empty state for tabs with no settings (excluding api-models which has special handling) */}
+                      {currentTab.id !== 'api-models' && getCurrentTabSettings().length === 0 && (
                         <div className="text-center py-12">
                           <div className="text-4xl mb-4">{currentTab.icon}</div>
                           <h4 className="text-lg font-medium text-gray-900 mb-2">No Settings Available</h4>

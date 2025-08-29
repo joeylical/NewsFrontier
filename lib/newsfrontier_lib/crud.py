@@ -16,9 +16,10 @@ from .database import Base
 from .models import (
     User, RSSFeed, RSSSubscription, RSSFetchRecord, RSSItemMetadata, 
     RSSItemDerivative, Topic, ArticleTopic, Event, ArticleEvent,
-    UserTopic, UserSummary, SystemSetting, Embedding, TopicEmbedding, EventEmbedding
+    UserTopic, UserSummary, SystemSetting, Embedding, TopicEmbedding, EventEmbedding,
+    LLMModel
 )
-from .schemas import UserCreate, UserUpdate
+from .schemas import UserCreate, UserUpdate, LLMModelCreate, LLMModelUpdate
 
 ModelType = TypeVar("ModelType", bound=Base)
 CreateSchemaType = TypeVar("CreateSchemaType")
@@ -791,9 +792,30 @@ class CRUDEventEmbedding(CRUDBase[EventEmbedding, dict, dict]):
         db.commit()
 
 
+class CRUDLLMModel(CRUDBase[LLMModel, LLMModelCreate, LLMModelUpdate]):
+    def get_by_name(self, db: Session, *, name: str) -> Optional[LLMModel]:
+        """Get model by name."""
+        return db.query(LLMModel).filter(LLMModel.name == name).first()
+    
+    def get_by_type(self, db: Session, *, model_type: str, active_only: bool = True) -> List[LLMModel]:
+        """Get models by type."""
+        query = db.query(LLMModel).filter(LLMModel.model_type == model_type)
+        if active_only:
+            query = query.filter(LLMModel.is_active == True)
+        return query.order_by(LLMModel.name).all()
+    
+    def get_first_by_type(self, db: Session, *, model_type: str) -> Optional[LLMModel]:
+        """Get first model for a type (by name order)."""
+        return db.query(LLMModel).filter(
+            LLMModel.model_type == model_type,
+            LLMModel.is_active == True
+        ).order_by(LLMModel.name).first()
+
+
 # Create instances
 user_summary = CRUDUserSummary(UserSummary)
 system_setting = CRUDSystemSetting(SystemSetting)
 embedding = CRUDEmbedding(Embedding)
 topic_embedding = CRUDTopicEmbedding(TopicEmbedding)
 event_embedding = CRUDEventEmbedding(EventEmbedding)
+llm_model = CRUDLLMModel(LLMModel)

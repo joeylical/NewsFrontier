@@ -348,6 +348,35 @@ class UserSummary(Base):
     user: Mapped["User"] = relationship("User", back_populates="summaries")
 
 
+class LLMModel(Base):
+    """LLM model configurations for multi-model support."""
+    __tablename__ = "llm_models"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    model_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    api_key_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    api_base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    config_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Check constraints
+    __table_args__ = (
+        CheckConstraint("model_type IN ('chat', 'embedding', 'image', 'audio', 'transcript')", 
+                       name="check_model_type_valid"),
+        CheckConstraint("name ~ '^[a-zA-Z][a-zA-Z0-9_]*$'", 
+                       name="check_name_format_valid"),
+        Index('idx_llm_models_type_active', 'model_type', 'is_active'),
+        Index('idx_llm_models_name', 'name'),
+        Index('idx_llm_models_provider', 'provider'),
+    )
+
+
 class SystemSetting(Base):
     """System-wide configuration settings."""
     __tablename__ = "system_settings"

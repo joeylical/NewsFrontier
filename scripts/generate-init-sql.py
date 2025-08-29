@@ -45,7 +45,7 @@ def main():
         cluster_threshold = db_config['cluster_threshold']
         max_articles_per_event = db_config['max_articles_per_event']
         
-        api_models_config = config['api_models']
+        llm_models_config = config['llm_models']
         features_config = config['features']
         processing_config = config['processing']
         storage_config = config['storage']
@@ -61,11 +61,10 @@ def main():
     print(f"  - Similarity threshold: {similarity_threshold}")
     print(f"  - Cluster threshold: {cluster_threshold}")
     print(f"  - Max articles per event: {max_articles_per_event}")
-    print(f"  - Default LLM provider: {api_models_config['default_llm_provider']}")
-    print(f"  - Summary model: {api_models_config['llm_summary_model']}")
-    print(f"  - Analysis model: {api_models_config['llm_analysis_model']}")
-    print(f"  - Embedding model: {api_models_config['llm_embedding_model']}")
-    print(f"  - Image model: {api_models_config['llm_image_model']}")
+    print(f"  - LLM models configured: {len(llm_models_config)}")
+    for model in llm_models_config:
+        status = "active" if model['is_active'] else "inactive"
+        print(f"    • {model['name']} ({model['model_type']}): {model['model_name']} [{status}]")
     print(f"  - Daily summary enabled: {features_config['daily_summary_enabled']}")
     print(f"  - Scraper interval: {processing_config['scraper_interval_minutes']} minutes")
     print(f"  - Batch processing enabled: {processing_config['batch_processing_enabled']}")
@@ -127,6 +126,35 @@ stages:
         print(f"Error loading prompts: {e}")
         sys.exit(1)
     
+    # Function to generate LLM model INSERT statements
+    def generate_llm_models_sql(models):
+        insert_statements = []
+        for model in models:
+            # Convert boolean values to SQL format
+            is_active = 'true' if model['is_active'] else 'false'
+            
+            # Escape single quotes in strings for SQL
+            name = model['name'].replace("'", "''")
+            model_type = model['model_type'].replace("'", "''")
+            provider = model['provider'].replace("'", "''")
+            model_name = model['model_name'].replace("'", "''")
+            description = model.get('description', '').replace("'", "''")
+            
+            # Optional fields
+            api_base_url = model.get('api_base_url')
+            config_json = model.get('config_json')
+            
+            api_base_url_sql = f"'{api_base_url.replace(chr(39), chr(39)+chr(39))}'" if api_base_url else 'NULL'
+            config_json_sql = f"'{config_json.replace(chr(39), chr(39)+chr(39))}'" if config_json else 'NULL'
+            
+            insert_stmt = f"""    ('{name}', '{model_type}', '{provider}', '{model_name}', NULL, {api_base_url_sql}, {is_active}, {config_json_sql}, '{description}')"""
+            insert_statements.append(insert_stmt)
+        
+        return ',\n'.join(insert_statements)
+    
+    print("Generating LLM models SQL...")
+    llm_models_sql = generate_llm_models_sql(llm_models_config)
+    
     # Read the SQL template
     template_file = script_dir / 'init.sql.template'
     if not template_file.exists():
@@ -150,17 +178,8 @@ stages:
         'CLUSTER_THRESHOLD': str(cluster_threshold),
         'MAX_ARTICLES_PER_EVENT': str(max_articles_per_event),
         
-        # API Models configuration
-        'DEFAULT_LLM_PROVIDER': api_models_config['default_llm_provider'],
-        'CUSTOM_LLM_API_URL': api_models_config['custom_llm_api_url'],
-        'LLM_SUMMARY_MODEL': api_models_config['llm_summary_model'],
-        'LLM_SUMMARY_USE_DEFAULT': api_models_config['llm_summary_use_default'],
-        'LLM_ANALYSIS_MODEL': api_models_config['llm_analysis_model'],
-        'LLM_ANALYSIS_USE_DEFAULT': api_models_config['llm_analysis_use_default'],
-        'LLM_EMBEDDING_MODEL': api_models_config['llm_embedding_model'],
-        'LLM_EMBEDDING_USE_DEFAULT': api_models_config['llm_embedding_use_default'],
-        'LLM_IMAGE_MODEL': api_models_config['llm_image_model'],
-        'LLM_IMAGE_USE_DEFAULT': api_models_config['llm_image_use_default'],
+        # LLM Models configuration
+        'LLM_MODELS_INSERT_DATA': llm_models_sql,
         
         # Features configuration
         'DAILY_SUMMARY_ENABLED': features_config['daily_summary_enabled'],

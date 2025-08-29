@@ -24,15 +24,16 @@ try:
     from newsfrontier_lib.models import (
         User as UserModel, RSSFeed as RSSFeedModel, 
         RSSItemMetadata, RSSFetchRecord, Event, ArticleEvent, Topic, ArticleTopic, 
-        RSSSubscription
+        RSSSubscription, LLMModel
     )
     from sqlalchemy import func
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import Session, joinedload
     from newsfrontier_lib.schemas import (
         RSSFeedCreate, RSSFeedUpdate, RSSFeedResponse,
         RSSSubscriptionCreate, RSSSubscriptionUpdate, RSSSubscriptionResponse,
         RSSItemResponse, TopicCreate, TopicUpdate, TopicResponse,
-        EventResponse, UserSummaryResponse, UserResponse
+        EventResponse, UserSummaryResponse, UserResponse,
+        LLMModelCreate, LLMModelUpdate, LLMModelResponse, LLMModelListResponse
     )
     from newsfrontier_lib.config_service import get_config, ConfigKeys
     from newsfrontier_lib import generate_topic_embedding as lib_generate_topic_embedding
@@ -995,7 +996,6 @@ async def get_cluster_detail(cluster_id: int, username: str = Depends(verify_tok
         raise HTTPException(status_code=404, detail="Cluster not found")
     
     # Get articles associated with this event
-    from sqlalchemy.orm import joinedload
     event_with_articles = db.query(Event).options(
         joinedload(Event.article_events).joinedload(ArticleEvent.rss_item)
     ).filter(Event.id == cluster_id).first()
@@ -1052,7 +1052,6 @@ async def get_articles(
     
     # Get articles from database with filters
     from sqlalchemy import func
-    from sqlalchemy.orm import joinedload
     
     # Build base query with joins if needed
     base_filters = [RSSItemMetadata.processing_status == status]
@@ -1075,7 +1074,7 @@ async def get_articles(
         articles_query = db.query(RSSItemMetadata).join(
             RSSFetchRecord, RSSItemMetadata.rss_fetch_record_id == RSSFetchRecord.id
         ).join(
-            RSSFeed, RSSFetchRecord.rss_feed_id == RSSFeed.id
+            RSSFeedModel, RSSFetchRecord.rss_feed_id == RSSFeedModel.id
         ).options(
             joinedload(RSSItemMetadata.fetch_record).joinedload(RSSFetchRecord.rss_feed)
         ).filter(*base_filters).order_by(RSSItemMetadata.created_at.desc()).offset(skip).limit(limit)
@@ -1156,7 +1155,7 @@ async def get_user_rss_feeds(
     
     # Get user's RSS subscriptions with feed info
     subscriptions = db.query(RSSSubscription).join(
-        RSSFeed, RSSSubscription.rss_uuid == RSSFeed.uuid
+        RSSFeedModel, RSSSubscription.rss_uuid == RSSFeedModel.uuid
     ).filter(
         RSSSubscription.user_id == user.id,
         RSSSubscription.is_active == True
@@ -1186,7 +1185,6 @@ async def get_article_detail(
     """
     Get detailed information about a specific article including AI-generated summary
     """
-    from sqlalchemy.orm import joinedload
     
     # Get article with its derivatives from database
     article = db.query(RSSItemMetadata).options(
@@ -2184,7 +2182,6 @@ async def get_events_by_topic(
         raise HTTPException(status_code=404, detail="Topic not found")
     
     # Get events related to this topic through article-topic relationships
-    from sqlalchemy.orm import joinedload
     from sqlalchemy import and_
     
     # Query events that have articles associated with this topic
@@ -3126,7 +3123,7 @@ async def get_system_stats(db = Depends(get_session)):
     today_end = datetime.combine(today, datetime.max.time())
     
     # Total RSS feeds
-    total_feeds = db.query(func.count(RSSFeed.id)).scalar() or 0
+    total_feeds = db.query(func.count(RSSFeedModel.id)).scalar() or 0
     
     # Total articles
     total_articles = db.query(func.count(RSSItemMetadata.id)).scalar() or 0
@@ -3190,6 +3187,153 @@ def validate_chain_yaml(
 
 
 
+
+# LLM Model Management API Endpoints
+@app.get("/api/admin/llm-models", response_model=List[LLMModelResponse])
+async def get_llm_models(
+    username: str = Depends(verify_token),
+    db = Depends(get_session)
+):
+    """Get all LLM models (admin only)"""
+    from newsfrontier_lib.models import User
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    from newsfrontier_lib.crud import llm_model
+    
+    models = llm_model.get_multi(db)
+    return [LLMModelResponse(
+        id=model.id,
+        name=model.name,
+        model_type=model.model_type,
+        provider=model.provider,
+        model_name=model.model_name,
+        api_base_url=model.api_base_url,
+        is_active=model.is_active,
+        config_json=model.config_json,
+        description=model.description,
+        has_api_key=bool(model.api_key_encrypted),
+        created_at=model.created_at,
+        updated_at=model.updated_at
+    ) for model in models]
+
+@app.post("/api/admin/llm-models", response_model=LLMModelResponse)
+async def create_llm_model(
+    model_data: LLMModelCreate,
+    username: str = Depends(verify_token),
+    db = Depends(get_session)
+):
+    """Create a new LLM model (admin only)"""
+    from newsfrontier_lib.models import User
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    from newsfrontier_lib.llm_model_service import get_llm_model_service
+    service = get_llm_model_service()
+    
+    try:
+        model = service.create_model(db, model_data)
+        return LLMModelResponse(
+            id=model.id,
+            name=model.name,
+            model_type=model.model_type,
+            provider=model.provider,
+            model_name=model.model_name,
+            api_base_url=model.api_base_url,
+            is_active=model.is_active,
+            config_json=model.config_json,
+            description=model.description,
+            has_api_key=bool(model.api_key_encrypted),
+            created_at=model.created_at,
+            updated_at=model.updated_at
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create model: {str(e)}")
+
+@app.put("/api/admin/llm-models/{model_id}", response_model=LLMModelResponse)
+async def update_llm_model(
+    model_id: int,
+    model_data: LLMModelUpdate,
+    username: str = Depends(verify_token),
+    db = Depends(get_session)
+):
+    """Update an LLM model (admin only)"""
+    from newsfrontier_lib.models import User
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    from newsfrontier_lib.llm_model_service import get_llm_model_service
+    service = get_llm_model_service()
+    
+    try:
+        model = service.update_model(db, model_id, model_data)
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found")
+        
+        return LLMModelResponse(
+            id=model.id,
+            name=model.name,
+            model_type=model.model_type,
+            provider=model.provider,
+            model_name=model.model_name,
+            api_base_url=model.api_base_url,
+            is_active=model.is_active,
+            config_json=model.config_json,
+            description=model.description,
+            has_api_key=bool(model.api_key_encrypted),
+            created_at=model.created_at,
+            updated_at=model.updated_at
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update model: {str(e)}")
+
+@app.delete("/api/admin/llm-models/{model_id}")
+async def delete_llm_model(
+    model_id: int,
+    username: str = Depends(verify_token),
+    db = Depends(get_session)
+):
+    """Delete an LLM model (admin only)"""
+    from newsfrontier_lib.models import User
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    from newsfrontier_lib.llm_model_service import get_llm_model_service
+    service = get_llm_model_service()
+    
+    success = service.delete_model(db, model_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    return {"message": "Model deleted successfully"}
+
+@app.get("/api/admin/llm-providers")
+async def get_llm_providers(
+    username: str = Depends(verify_token),
+    db = Depends(get_session)
+):
+    """Get supported LLM providers from LiteLLM (admin only)"""
+    from newsfrontier_lib.models import User
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    from newsfrontier_lib.llm_model_service import get_llm_model_service
+    service = get_llm_model_service()
+    
+    try:
+        providers = service.get_supported_providers()
+        return {"providers": providers}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get providers: {str(e)}")
 
 @app.on_event("startup")
 async def startup_event():

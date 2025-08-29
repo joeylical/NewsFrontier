@@ -187,6 +187,22 @@ CREATE TABLE IF NOT EXISTS user_summaries (
     CONSTRAINT unique_user_summary_per_date UNIQUE (user_id, date)
 );
 
+-- Create LLM models table for multi-model configuration
+CREATE TABLE IF NOT EXISTS llm_models (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) UNIQUE NOT NULL CHECK (name ~ '^[a-zA-Z][a-zA-Z0-9_]*$'),
+    model_type VARCHAR(50) NOT NULL CHECK (model_type IN ('chat', 'embedding', 'image', 'audio', 'transcript')),
+    provider VARCHAR(100) NOT NULL,
+    model_name VARCHAR(200) NOT NULL,
+    api_key_encrypted TEXT,
+    api_base_url VARCHAR(500),
+    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    config_json TEXT,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Create system settings table
 CREATE TABLE IF NOT EXISTS system_settings (
     id SERIAL PRIMARY KEY,
@@ -213,6 +229,9 @@ CREATE INDEX IF NOT EXISTS idx_events_user_id ON events(user_id);
 CREATE INDEX IF NOT EXISTS idx_events_topic_id ON events(topic_id);
 CREATE INDEX IF NOT EXISTS idx_user_summaries_user_date ON user_summaries(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(setting_key);
+CREATE INDEX IF NOT EXISTS idx_llm_models_type_active ON llm_models(model_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_llm_models_name ON llm_models(name);
+CREATE INDEX IF NOT EXISTS idx_llm_models_provider ON llm_models(provider);
 
 -- Create vector indexes for similarity search (using IVFFlat with appropriate lists parameter)
 -- Note: Vector indexes will be created after initial data is inserted to optimize performance
@@ -231,36 +250,7 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
     ('similarity_threshold', '{{SIMILARITY_THRESHOLD}}', 'float', 'Minimum similarity score for clustering (0.0-1.0)', true),
     ('cluster_threshold', '{{CLUSTER_THRESHOLD}}', 'float', 'Minimum embedding similarity score for direct event assignment (0.0-1.0)', true),
     ('max_articles_per_event', '{{MAX_ARTICLES_PER_EVENT}}', 'integer', 'Maximum articles to associate with a single event', true),
-    -- Legacy prompt entries (will be replaced by YAML configurations below)
-    
-    -- Default API Configuration
-    ('default_llm_provider', '{{DEFAULT_LLM_PROVIDER}}', 'string', 'Default API provider for LLM services', false),
-    ('custom_llm_api_url', '{{CUSTOM_LLM_API_URL}}', 'string', 'Custom API base URL (used when provider is custom)', false),
-    ('default_llm_api_key_encrypted', NULL, 'string', 'Default API key for LLM services', false),
-    
-    -- Summary Model Configuration
-    ('llm_summary_model', '{{LLM_SUMMARY_MODEL}}', 'string', 'Model name for article summaries', false),
-    ('llm_summary_use_default', '{{LLM_SUMMARY_USE_DEFAULT}}', 'boolean', 'Use default API configuration for summary model', false),
-    ('llm_summary_api_url', NULL, 'string', 'Custom API base URL for summary model', false),
-    ('llm_summary_api_key_encrypted', NULL, 'string', 'Custom API key for summary model', false),
-    
-    -- Analysis Model Configuration  
-    ('llm_analysis_model', '{{LLM_ANALYSIS_MODEL}}', 'string', 'Model name for analysis tasks', false),
-    ('llm_analysis_use_default', '{{LLM_ANALYSIS_USE_DEFAULT}}', 'boolean', 'Use default API configuration for analysis model', false),
-    ('llm_analysis_api_url', NULL, 'string', 'Custom API base URL for analysis model', false),
-    ('llm_analysis_api_key_encrypted', NULL, 'string', 'Custom API key for analysis model', false),
-    
-    -- Embedding Model Configuration
-    ('llm_embedding_model', '{{LLM_EMBEDDING_MODEL}}', 'string', 'Model name for embeddings', false),
-    ('llm_embedding_use_default', '{{LLM_EMBEDDING_USE_DEFAULT}}', 'boolean', 'Use default API configuration for embedding model', false),
-    ('llm_embedding_api_url', NULL, 'string', 'Custom API base URL for embedding model', false),
-    ('llm_embedding_api_key_encrypted', NULL, 'string', 'Custom API key for embedding model', false),
-    
-    -- Image Model Configuration
-    ('llm_image_model', '{{LLM_IMAGE_MODEL}}', 'string', 'Model name for image generation', false),
-    ('llm_image_use_default', '{{LLM_IMAGE_USE_DEFAULT}}', 'boolean', 'Use default API configuration for image model', false),
-    ('llm_image_api_url', NULL, 'string', 'Custom API base URL for image model', false),
-    ('llm_image_api_key_encrypted', NULL, 'string', 'Custom API key for image model', false),
+    -- Legacy API model configurations removed - now using llm_models table
     
     -- Feature Toggles
     ('daily_summary_enabled', '{{DAILY_SUMMARY_ENABLED}}', 'boolean', 'Enable daily summary generation', false),
@@ -308,5 +298,10 @@ ON CONFLICT (username) DO NOTHING;
 INSERT INTO users (username, password_hash, email, is_admin) VALUES
     ('test', '$2b$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'test@newsfrontier.dev', false)
 ON CONFLICT (username) DO NOTHING;
+
+-- Insert default LLM model configurations
+INSERT INTO llm_models (name, model_type, provider, model_name, api_key_encrypted, api_base_url, is_active, config_json, description) VALUES
+{{LLM_MODELS_INSERT_DATA}}
+ON CONFLICT (name) DO NOTHING;
 
 COMMIT;
