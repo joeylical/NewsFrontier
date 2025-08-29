@@ -137,6 +137,26 @@ class ChainLoader:
             logger.error(f"Failed to load prompt chain '{prompt_name}' from database: {e}")
             return None
     
+    def get_stage_llm_params(self, stage: Dict[str, Any], default_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Extract LLM parameters from a stage configuration.
+        
+        Args:
+            stage: Stage configuration dictionary
+            default_params: Default parameters to use if not specified in stage
+            
+        Returns:
+            Dictionary of LLM parameters for this stage
+        """
+        # Start with default parameters
+        params = default_params.copy() if default_params else {}
+        
+        # Override with stage-specific parameters
+        if 'llm_params' in stage:
+            params.update(stage['llm_params'])
+        
+        return params
+    
     def _parse_and_validate_yaml(self, yaml_content: str, chain_name: str) -> Optional[Dict[str, Any]]:
         """
         Parse and validate YAML chain configuration.
@@ -218,6 +238,10 @@ class ChainLoader:
                 f"Supported types: {self.supported_stage_types}"
             )
         
+        # Validate LLM parameters if present
+        if 'llm_params' in stage:
+            self._validate_llm_params(stage['llm_params'], chain_name, stage['name'])
+        
         # Validate stage-specific requirements
         if stage['type'] == 'question':
             if 'options' not in stage:
@@ -237,6 +261,77 @@ class ChainLoader:
             if 'next_stage' not in stage:
                 raise ChainValidationError(
                     f"Conditional stage in chain '{chain_name}' must have 'next_stage' field"
+                )
+    
+    def _validate_llm_params(self, llm_params: Dict[str, Any], chain_name: str, stage_name: str):
+        """Validate LLM parameters for a stage."""
+        if not isinstance(llm_params, dict):
+            raise ChainValidationError(
+                f"LLM parameters in stage '{stage_name}' of chain '{chain_name}' must be a dictionary"
+            )
+        
+        # Validate temperature
+        if 'temperature' in llm_params:
+            temp = llm_params['temperature']
+            if not isinstance(temp, (int, float)):
+                raise ChainValidationError(
+                    f"Temperature in stage '{stage_name}' of chain '{chain_name}' must be a number"
+                )
+            if not 0.0 <= temp <= 2.0:
+                raise ChainValidationError(
+                    f"Temperature in stage '{stage_name}' of chain '{chain_name}' must be between 0.0 and 2.0, got {temp}"
+                )
+        
+        # Validate max_tokens
+        if 'max_tokens' in llm_params:
+            max_tokens = llm_params['max_tokens']
+            if not isinstance(max_tokens, int):
+                raise ChainValidationError(
+                    f"max_tokens in stage '{stage_name}' of chain '{chain_name}' must be an integer"
+                )
+            if max_tokens <= 0:
+                raise ChainValidationError(
+                    f"max_tokens in stage '{stage_name}' of chain '{chain_name}' must be positive, got {max_tokens}"
+                )
+            if max_tokens > 100000:  # Reasonable upper limit
+                raise ChainValidationError(
+                    f"max_tokens in stage '{stage_name}' of chain '{chain_name}' must be <= 100000, got {max_tokens}"
+                )
+        
+        # Validate top_p
+        if 'top_p' in llm_params:
+            top_p = llm_params['top_p']
+            if not isinstance(top_p, (int, float)):
+                raise ChainValidationError(
+                    f"top_p in stage '{stage_name}' of chain '{chain_name}' must be a number"
+                )
+            if not 0.0 <= top_p <= 1.0:
+                raise ChainValidationError(
+                    f"top_p in stage '{stage_name}' of chain '{chain_name}' must be between 0.0 and 1.0, got {top_p}"
+                )
+        
+        # Validate frequency_penalty
+        if 'frequency_penalty' in llm_params:
+            freq_penalty = llm_params['frequency_penalty']
+            if not isinstance(freq_penalty, (int, float)):
+                raise ChainValidationError(
+                    f"frequency_penalty in stage '{stage_name}' of chain '{chain_name}' must be a number"
+                )
+            if not -2.0 <= freq_penalty <= 2.0:
+                raise ChainValidationError(
+                    f"frequency_penalty in stage '{stage_name}' of chain '{chain_name}' must be between -2.0 and 2.0, got {freq_penalty}"
+                )
+        
+        # Validate presence_penalty
+        if 'presence_penalty' in llm_params:
+            pres_penalty = llm_params['presence_penalty']
+            if not isinstance(pres_penalty, (int, float)):
+                raise ChainValidationError(
+                    f"presence_penalty in stage '{stage_name}' of chain '{chain_name}' must be a number"
+                )
+            if not -2.0 <= pres_penalty <= 2.0:
+                raise ChainValidationError(
+                    f"presence_penalty in stage '{stage_name}' of chain '{chain_name}' must be between -2.0 and 2.0, got {pres_penalty}"
                 )
     
     def _validate_chain_semantics(self, config: Dict[str, Any], chain_name: str):

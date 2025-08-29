@@ -42,7 +42,10 @@ stages:
   - name: main_prompt
     type: final
     prompt: |
-${content.split('\n').map(line => '      ' + line).join('\n')}`;
+${content.split('\n').map(line => '      ' + line).join('\n')}
+    llm_params:
+      temperature: 0.7
+      max_tokens: 1000`;
           
           onFileSelect(yamlContent, file.name);
         } else {

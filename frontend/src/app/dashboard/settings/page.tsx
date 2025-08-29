@@ -301,7 +301,10 @@ stages:
       - Keep it under 150 words
       - Focus on key facts and main points
       - Use clear, engaging language
-      - Maintain objectivity`
+      - Maintain objectivity
+    llm_params:
+      temperature: 0.3
+      max_tokens: 500`
   },
   {
     key: 'prompt_cluster_detection',
@@ -327,7 +330,10 @@ stages:
       - Geographic relevance
       - Key entities mentioned
       
-      Provide clustering recommendations with confidence scores.`
+      Provide clustering recommendations with confidence scores.
+    llm_params:
+      temperature: 0.2
+      max_tokens: 800`
   },
   {
     key: 'prompt_daily_summary_system',
@@ -353,7 +359,10 @@ stages:
       - Notable mentions
       - Overall sentiment and trends
       
-      Keep it informative yet digestible, around 300-500 words.`
+      Keep it informative yet digestible, around 300-500 words.
+    llm_params:
+      temperature: 0.4
+      max_tokens: 1500`
   },
   {
     key: 'prompt_cover_image_generation',
@@ -380,7 +389,10 @@ stages:
       - Professional and engaging
       - Suitable for AI image generation
       
-      Provide a clear, detailed description in 1-2 sentences.`
+      Provide a clear, detailed description in 1-2 sentences.
+    llm_params:
+      temperature: 0.7
+      max_tokens: 200`
   },
 
   // ===== STORAGE =====
@@ -1167,6 +1179,12 @@ stages:
   - name: stage1
     type: question|final|transform|conditional
     prompt: "Your prompt template"
+    llm_params:  # optional LLM control parameters
+      temperature: 0.7      # 0.0-2.0, controls randomness
+      max_tokens: 1000      # max output tokens
+      top_p: 0.9           # 0.0-1.0, nucleus sampling
+      frequency_penalty: 0  # -2.0-2.0, reduce repetition
+      presence_penalty: 0   # -2.0-2.0, encourage new topics
     options: ["option1", "option2"]  # for question type
     next_stages:  # optional branching
       option1: next_stage_name`}</pre>
