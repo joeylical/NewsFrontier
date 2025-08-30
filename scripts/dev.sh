@@ -376,10 +376,10 @@ start_frontend() {
     cd frontend
     
     # Install dependencies if needed
-    if [ ! -d "node_modules" ]; then
-        print_step "Installing frontend dependencies..."
-        pnpm install
-    fi
+    # if [ ! -d "node_modules" ]; then
+    print_step "Installing frontend dependencies..."
+    pnpm install
+    # fi
     
     # Export environment variables for frontend
     export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
